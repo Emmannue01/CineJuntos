@@ -196,6 +196,6 @@ export async function updateRoomVideo(roomId: string, uid: string, video: Pick<V
   })
 }
 
-export async function markRoomEnded(roomId: string, uid: string) {
+export async function markRoomEnded(roomId: string) {
   await updateDoc(doc(db, 'rooms', roomId), { status: 'ended', endedAt: serverTimestamp() })
 }

@@ -84,7 +84,6 @@ function RoomExperience(props: {
   const { room, uid, username, avatar, state, messages, friends, latency, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
-  const [videoUrl, setVideoUrl] = useState('')
   const messageEndRef = useRef<HTMLDivElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const ended = room.status === 'ended'
