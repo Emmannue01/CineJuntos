@@ -38,7 +38,7 @@ export default function RoomPage() {
     if (!user || !roomId) return
     let active = true
     setError('')
-    void joinRoom(roomId).then(() => { if (active) setJoined(true) }).catch((cause) => { if (active) setError(readableError(cause)) })
+    void joinRoom(roomId, user.uid).then(() => { if (active) setJoined(true) }).catch((cause) => { if (active) setError(readableError(cause)) })
     return () => { active = false }
   }, [user, roomId])
 
@@ -69,7 +69,7 @@ export default function RoomPage() {
 
   async function exit() {
     setBusy(true)
-    try { await leaveRoom(roomId) } catch (cause) { setError(readableError(cause)) }
+    try { await leaveRoom(roomId, user.uid) } catch (cause) { setError(readableError(cause)) }
     navigate('/')
   }
 
