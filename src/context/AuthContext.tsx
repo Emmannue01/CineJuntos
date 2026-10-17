@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from 'firebase/auth'
 import { isFirebaseConfigured } from '../firebase'
 import type { UserProfile } from '../types'
@@ -32,7 +32,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function makeUsername(name: string) {
-  const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]/g, '').slice(0, 16) || 'cinefilo'
+  const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]/g, '').slice(0, 15) || 'cinefilo'
   return `${base}_${Math.random().toString(36).slice(2, 6)}`
 }
 
@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
+  const registrationInProgressRef = useRef(false)
 
   const refreshProfile = async () => {
     const { auth } = await loadAuth()
@@ -94,28 +95,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     let active = true
     let unsubscribe: (() => void) | undefined
-    void loadAuth().then(({ auth, onAuthStateChanged, getRedirectResult }) => {
+    void (async () => {
+      const { auth, onAuthStateChanged, getRedirectResult } = await loadAuth()
       if (!active) return
-      void getRedirectResult(auth).catch((error) => {
+      try {
+        const result = await getRedirectResult(auth)
+        if (result) {
+          const resultProfile = await ensureProfile(result.user)
+          if (!active) return
+          setProfile(resultProfile)
+          setUser(result.user)
+          setAuthError('')
+        }
+      } catch (error) {
         if (active) setAuthError(readableError(error))
-      })
+      }
+      if (!active) return
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-        setUser(currentUser)
+        if (!active) return
+        if (registrationInProgressRef.current) return
         if (!currentUser) {
+          setUser(null)
           setProfile(null)
           setLoading(false)
           return
         }
         try {
-          setProfile(await ensureProfile(currentUser))
+          const currentProfile = await ensureProfile(currentUser)
+          if (!active) return
+          setProfile(currentProfile)
+          setUser(currentUser)
+          setAuthError('')
         } catch (error) {
           console.error('No se pudo cargar el perfil', error)
+          if (active) setAuthError(`Google pudo autenticarte, pero no se pudo guardar tu perfil: ${readableError(error)}`)
           setProfile(null)
+          setUser(null)
         } finally {
-          setLoading(false)
+          if (active) setLoading(false)
         }
       })
-    }).catch((error) => {
+    })().catch((error) => {
       console.error('No se pudo inicializar Firebase Authentication', error)
       if (active) setLoading(false)
     })
@@ -130,22 +150,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAuthError: () => setAuthError(''),
     register: async (email, password, username, displayName) => {
       const { auth, createUserWithEmailAndPassword, deleteUser } = await loadAuth()
-      const credential = await createUserWithEmailAndPassword(auth, email, password)
+      registrationInProgressRef.current = true
       try {
-        await reserveProfile(credential.user, username, displayName)
-        setUser(credential.user)
-        const { db, doc, getDoc } = await loadFirestore()
-        setProfile((await getDoc(doc(db, 'users', credential.user.uid))).data() as UserProfile)
-      } catch (error) {
-        await deleteUser(credential.user)
-        setUser(null)
-        setProfile(null)
-        throw error
+        const credential = await createUserWithEmailAndPassword(auth, email, password)
+        try {
+          await reserveProfile(credential.user, username, displayName)
+          const { db, doc, getDoc } = await loadFirestore()
+          setProfile((await getDoc(doc(db, 'users', credential.user.uid))).data() as UserProfile)
+          setUser(credential.user)
+        } catch (error) {
+          await deleteUser(credential.user)
+          setUser(null)
+          setProfile(null)
+          throw error
+        }
+      } finally {
+        registrationInProgressRef.current = false
       }
     },
     login: async (email, password) => {
       const { auth, signInWithEmailAndPassword } = await loadAuth()
       const credential = await signInWithEmailAndPassword(auth, email, password)
+      const currentProfile = await ensureProfile(credential.user)
+      setProfile(currentProfile)
       setUser(credential.user)
     },
     loginWithGoogle: async () => {
@@ -159,8 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const credential = await signInWithPopup(auth, googleProvider)
+        const currentProfile = await ensureProfile(credential.user)
+        setProfile(currentProfile)
         setUser(credential.user)
-        setProfile(await ensureProfile(credential.user))
         return 'popup' as const
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
