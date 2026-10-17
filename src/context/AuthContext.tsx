@@ -79,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
   const registrationInProgressRef = useRef(false)
+  const authSdkRef = useRef<Awaited<ReturnType<typeof loadAuth>> | null>(null)
 
   const refreshProfile = async () => {
     const { auth } = await loadAuth()
@@ -96,7 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
     let unsubscribe: (() => void) | undefined
     void (async () => {
-      const { auth, onAuthStateChanged, getRedirectResult } = await loadAuth()
+      const authSdk = await loadAuth()
+      authSdkRef.current = authSdk
+      const { auth, onAuthStateChanged, getRedirectResult } = authSdk
       if (!active) return
       try {
         const result = await getRedirectResult(auth)
@@ -176,12 +179,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(credential.user)
     },
     loginWithGoogle: async () => {
-      const { auth, googleProvider, signInWithPopup, signInWithRedirect } = await loadAuth()
+      const authSdk = authSdkRef.current
+      if (!authSdk) throw new Error('Firebase Authentication todavía se está preparando. Inténtalo de nuevo.')
+      const { auth, googleProvider, signInWithPopup, signInWithRedirect } = authSdk
       setAuthError('')
       const mobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
       if (mobileBrowser) {
-        await signInWithRedirect(auth, googleProvider)
+        const redirect = signInWithRedirect(auth, googleProvider)
+        await redirect
         return 'redirect' as const
       }
       try {
