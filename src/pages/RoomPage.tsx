@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Circle, Clock3, Copy, Expand, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
+import { ArrowLeft, Check, Circle, Clock3, Copy, Expand, ExternalLink, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { onValue, ref } from 'firebase/database'
 import { useAuth } from '../context/AuthContext'
@@ -10,9 +10,11 @@ import { functions } from '../firebase/functions'
 import { rtdb } from '../firebase/database'
 import { readableError } from '../lib/errors'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
+import { useSynchronizedMedia } from '../hooks/useSynchronizedMedia'
 import { useRoomVoice } from '../hooks/useRoomVoice'
 import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState } from '../services/appService'
 import type { ChatMessage, Room, RoomState, UserProfile } from '../types'
+import { mediaEmbedUrl } from '../lib/media'
 
 const reactions = ['❤️', '😂', '😮', '👏', '🍿']
 
@@ -86,15 +88,21 @@ function RoomExperience(props: {
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const ended = room.status === 'ended'
   const activeVideoId = state?.videoId || room.videoId
-  const player = useSynchronizedPlayer({
+  const activeProvider = state?.provider || room.provider || 'youtube'
+  const activeMediaUrl = state?.mediaUrl || room.mediaUrl || ''
+  const advanceVideo = () => {
+    if (ended) return
+    void advanceRoom(room.id, room.currentItemId).catch((cause) => setPlayError(readableError(cause)))
+  }
+  const youtubePlayer = useSynchronizedPlayer({
     roomId: room.id,
     uid,
     videoId: activeVideoId,
-    onVideoEnded: () => {
-      if (ended) return
-      void advanceRoom(room.id, room.currentItemId).catch((cause) => setPlayError(readableError(cause)))
-    },
+    enabled: activeProvider === 'youtube',
+    onVideoEnded: advanceVideo,
   })
+  const mediaPlayer = useSynchronizedMedia({ roomId: room.id, uid, mediaUrl: activeMediaUrl, enabled: activeProvider === 'direct', onVideoEnded: advanceVideo })
+  const player = activeProvider === 'direct' ? mediaPlayer : youtubePlayer
   const partnerUid = room.memberUids.find((member) => member !== uid)
   const partner = friends.find((friend) => friend.uid === partnerUid)
   const voice = useRoomVoice(room.id, uid, partnerUid || '')
@@ -157,10 +165,10 @@ function RoomExperience(props: {
     <div className="room-title"><div><span className="section-kicker">ESTÁN VIENDO</span><h1>{room.title}</h1></div><div className="room-watchers">{partner ? <><StatusAvatar uid={partner.uid} name={partner.displayName} photoURL={partner.avatar} size="small" /><span><strong>{partner.displayName}</strong><small>está en la sala</small></span></> : pendingInviteUid ? <><span className="waiting-avatar"><Clock3 size={15} /></span><span><strong>Esperando a tu amigo</strong><small>La invitación está en camino</small></span></> : <><span className="waiting-avatar"><UsersIcon /></span><span><strong>Solo por ahora</strong><small>Invita a alguien para compartir</small></span></>}</div></div>
     {error && <div className="inline-alert" role="alert">{error}<button onClick={() => setError('')}>Cerrar</button></div>}{playError && <div className="inline-alert" role="alert">{playError}<button onClick={() => setPlayError('')}>Cerrar</button></div>}
     <div className="room-layout">
-      <section className="player-column"><div className="player-frame"><div className="yt-player" ref={player.mountRef} /><div className={`player-loading ${player.ready ? 'is-ready' : ''}`}><LoaderCircle className="spin" size={22} /><span>Preparando la pantalla…</span></div>{ended && <div className="player-ended"><div className="ended-mark"><Check size={26} /></div><span className="section-kicker">FIN DE LA FUNCIÓN</span><h2>Qué buen plan.</h2><p>Ya vieron todo lo que había en la cola.</p><button className="primary-button" onClick={() => void exitRoom()}>Volver al inicio <ArrowLeft size={16} /></button></div>}</div>
+      <section className="player-column"><div className="player-frame">{activeProvider === 'youtube' ? <div className="yt-player" ref={youtubePlayer.mountRef} /> : activeProvider === 'direct' ? <video className="native-player" ref={mediaPlayer.mountRef} src={activeMediaUrl} playsInline /> : <iframe className="external-player" src={mediaEmbedUrl(activeMediaUrl, 'embed')} title={room.title} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}<div className={`player-loading ${player.ready || activeProvider === 'embed' ? 'is-ready' : ''}`}>{activeProvider === 'embed' ? <span>Este reproductor puede no sincronizarse con la sala.</span> : <><LoaderCircle className="spin" size={22} /><span>Preparando la pantalla…</span></>}</div>{ended && <div className="player-ended"><div className="ended-mark"><Check size={26} /></div><span className="section-kicker">FIN DE LA FUNCIÓN</span><h2>Qué buen plan.</h2><p>Ya vieron todo lo que había en la cola.</p><button className="primary-button" onClick={() => void exitRoom()}>Volver al inicio <ArrowLeft size={16} /></button></div>}</div>
         <div className="player-controls"><button className="player-play" onClick={state?.playing ? pause : play} aria-label={state?.playing ? 'Pausar' : 'Reproducir'} disabled={!player.ready || ended}>{state?.playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><span className="time-readout">{formatTime(player.currentTime)} <span>/</span> {formatTime(player.duration)}</span><input aria-label="Posición del video" className="progress-range" type="range" min={0} max={Math.max(player.duration, 1)} value={Math.min(player.currentTime, Math.max(player.duration, 1))} onChange={(event) => player.seek(Number(event.target.value))} disabled={!player.ready || ended} /><label className="speed-select"><Settings2 size={15} /><select value={speed} onChange={(event) => { const value = Number(event.target.value); setSpeed(event.target.value); player.setRate(value) }} aria-label="Velocidad de reproducción"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><button className="bare-icon fullscreen-control" title="Pantalla completa" onClick={player.fullscreen}><Expand size={17} /></button></div>
-        <div className="player-underbar"><span><span className={partner ? 'live-dot' : 'live-dot offline'} /> {partner ? `${partner.displayName} ${partnerOnlineLabel(partner.uid)}` : pendingInviteUid ? 'Esperando confirmación' : 'Comparte el enlace para invitar'}</span><span><Volume2 size={14} /> Desfase corregido automáticamente</span></div>
-        <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next"><img src={currentQueue[0].thumbnail} alt="" /><span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>
+        <div className="player-underbar"><span><span className={partner ? 'live-dot' : 'live-dot offline'} /> {partner ? `${partner.displayName} ${partnerOnlineLabel(partner.uid)}` : pendingInviteUid ? 'Esperando confirmación' : 'Comparte el enlace para invitar'}</span>{activeProvider === 'embed' ? <span><ExternalLink size={14} /><a href={activeMediaUrl} target="_blank" rel="noreferrer">Abrir contenido en su sitio</a><small>No todos los reproductores permiten sincronización.</small></span> : <span><Volume2 size={14} /> Desfase corregido automáticamente</span>}</div>
+        <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next">{currentQueue[0].thumbnail && <img src={currentQueue[0].thumbnail} alt="" />}<span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>
       </section>
       <aside className={`chat-panel ${chatOpen ? 'chat-open' : ''}`}><div className="chat-header"><div><span className="section-kicker">COMENTARIOS EN VIVO</span><h2><MessageCircle size={17} /> Sala de chat</h2></div><span className="chat-online"><span className="live-dot" /> {partner ? '2 aquí' : '1 aquí'}</span><button className="chat-collapse" onClick={() => setChatOpen(!chatOpen)} aria-label={chatOpen ? 'Cerrar chat' : 'Abrir chat'}><MessageCircle size={17} /></button></div>
         <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada' : voice.status === 'connecting' ? 'Conectando…' : voice.status === 'waiting' ? 'Esperando conexión' : 'Chat de voz')}</div><button className="voice-action" onClick={() => voice.active ? voice.toggleMute() : void voice.start()} disabled={ended || !partnerUid || voice.status === 'connecting'} title={voice.active ? voice.muted ? 'Activar micrófono' : 'Silenciar micrófono' : 'Iniciar chat de voz'}>{voice.active && voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.active ? voice.muted ? 'Activar' : 'Silenciar' : 'Hablar'}</button>{voice.active && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { User } from 'firebase/auth'
 import { isFirebaseConfigured } from '../firebase'
 import type { UserProfile } from '../types'
+import { readableError } from '../lib/errors'
 
 async function loadAuth() {
   if (!isFirebaseConfigured) throw new Error('Configura Firebase en el archivo .env para habilitar las cuentas.')
@@ -18,9 +19,11 @@ interface AuthContextValue {
   user: User | null
   profile: UserProfile | null
   loading: boolean
+  authError: string
+  clearAuthError: () => void
   register: (email: string, password: string, username: string, displayName: string) => Promise<void>
   login: (email: string, password: string) => Promise<void>
-  loginWithGoogle: () => Promise<void>
+  loginWithGoogle: () => Promise<'popup' | 'redirect'>
   logout: () => Promise<void>
   updateProfile: (changes: Pick<UserProfile, 'username' | 'displayName' | 'bio' | 'avatar'>) => Promise<void>
   refreshProfile: () => Promise<void>
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState('')
 
   const refreshProfile = async () => {
     const { auth } = await loadAuth()
@@ -90,8 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     let active = true
     let unsubscribe: (() => void) | undefined
-    void loadAuth().then(({ auth, onAuthStateChanged }) => {
+    void loadAuth().then(({ auth, onAuthStateChanged, getRedirectResult }) => {
       if (!active) return
+      void getRedirectResult(auth).catch((error) => {
+        if (active) setAuthError(readableError(error))
+      })
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         setUser(currentUser)
         if (!currentUser) {
@@ -119,6 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     loading,
+    authError,
+    clearAuthError: () => setAuthError(''),
     register: async (email, password, username, displayName) => {
       const { auth, createUserWithEmailAndPassword, deleteUser } = await loadAuth()
       const credential = await createUserWithEmailAndPassword(auth, email, password)
@@ -140,10 +149,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(credential.user)
     },
     loginWithGoogle: async () => {
-      const { auth, googleProvider, signInWithPopup } = await loadAuth()
-      const credential = await signInWithPopup(auth, googleProvider)
-      setUser(credential.user)
-      setProfile(await ensureProfile(credential.user))
+      const { auth, googleProvider, signInWithPopup, signInWithRedirect } = await loadAuth()
+      setAuthError('')
+      const mobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      if (mobileBrowser) {
+        await signInWithRedirect(auth, googleProvider)
+        return 'redirect' as const
+      }
+      try {
+        const credential = await signInWithPopup(auth, googleProvider)
+        setUser(credential.user)
+        setProfile(await ensureProfile(credential.user))
+        return 'popup' as const
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(code)) {
+          await signInWithRedirect(auth, googleProvider)
+          return 'redirect' as const
+        }
+        throw error
+      }
     },
     logout: async () => {
       const { auth, signOut } = await loadAuth()
@@ -161,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await refreshProfile()
     },
     refreshProfile,
-  }), [user, profile, loading])
+  }), [user, profile, loading, authError])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

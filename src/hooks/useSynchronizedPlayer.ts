@@ -48,10 +48,11 @@ interface Options {
   roomId: string
   uid: string
   videoId: string
+  enabled?: boolean
   onVideoEnded: () => void
 }
 
-export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Options) {
+export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, onVideoEnded }: Options) {
   const mountRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
   const heartbeatRef = useRef<number | null>(null)
@@ -66,6 +67,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
   latestVideoRef.current = videoId
 
   const applyRemoteState = useCallback((state: RoomState) => {
+    if (state.provider && state.provider !== 'youtube') return
     const player = playerRef.current
     if (!player) return
     ignoreUntilRef.current = Date.now() + 1600
@@ -86,6 +88,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
 
   useEffect(() => {
     let cancelled = false
+    if (!enabled) return
     void loadYouTubeApi().then(() => {
       if (cancelled || !mountRef.current || !window.YT) return
       playerRef.current = new window.YT.Player(mountRef.current, {
@@ -116,6 +119,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
               }
               void writeRoomState(roomId, uid, {
                 videoId: latestVideoRef.current,
+                provider: 'youtube',
                 playing: event.data === window.YT.PlayerState.PLAYING,
                 currentTime: player.getCurrentTime(),
                 playbackRate: player.getPlaybackRate(),
@@ -126,6 +130,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
                   if (!activePlayer || !window.YT || activePlayer.getPlayerState() !== window.YT.PlayerState.PLAYING) return
                   void writeRoomState(roomId, uid, {
                     videoId: latestVideoRef.current,
+                    provider: 'youtube',
                     playing: true,
                     currentTime: activePlayer.getCurrentTime(),
                     playbackRate: activePlayer.getPlaybackRate(),
@@ -149,14 +154,17 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
       playerRef.current?.destroy()
       playerRef.current = null
     }
-  }, [roomId, uid, videoId, applyRemoteState])
+  }, [roomId, uid, videoId, enabled, applyRemoteState])
 
-  useEffect(() => onValue(ref(rtdb, `rooms/${roomId}/state`), (snapshot) => {
-    const state = snapshot.val() as RoomState | null
-    if (!state) return
-    remoteStateRef.current = state
-    applyRemoteState(state)
-  }), [roomId, applyRemoteState])
+  useEffect(() => {
+    if (!enabled) return
+    return onValue(ref(rtdb, `rooms/${roomId}/state`), (snapshot) => {
+      const state = snapshot.val() as RoomState | null
+      if (!state) return
+      remoteStateRef.current = state
+      applyRemoteState(state)
+    })
+  }, [roomId, enabled, applyRemoteState])
 
   useEffect(() => {
     if (!ready) return
@@ -175,7 +183,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, onVideoEnded }: Op
   const seek = (seconds: number) => {
     playerRef.current?.seekTo(seconds, true)
     const isPlaying = playerRef.current?.getPlayerState() === window.YT?.PlayerState.PLAYING
-    void writeRoomState(roomId, uid, { videoId: latestVideoRef.current, playing: isPlaying, currentTime: seconds, playbackRate: playerRef.current?.getPlaybackRate() || 1 })
+    void writeRoomState(roomId, uid, { videoId: latestVideoRef.current, provider: 'youtube', playing: isPlaying, currentTime: seconds, playbackRate: playerRef.current?.getPlaybackRate() || 1 })
   }
   const fullscreen = () => {
     const frame = mountRef.current?.querySelector('iframe')

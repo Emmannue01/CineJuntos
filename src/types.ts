@@ -12,6 +12,8 @@ export interface UserProfile {
 export interface VideoItem {
   id: string
   videoId: string
+  mediaUrl?: string
+  provider?: 'youtube' | 'direct' | 'embed'
   title: string
   thumbnail: string
   addedBy: string
@@ -34,6 +36,8 @@ export interface Room {
   memberUids: string[]
   invitedUids: string[]
   videoId: string
+  mediaUrl?: string
+  provider?: 'youtube' | 'direct' | 'embed'
   title: string
   thumbnail: string
   queue?: RoomQueueEntry[]
@@ -45,6 +49,8 @@ export interface Room {
 
 export interface RoomQueueEntry {
   videoId: string
+  mediaUrl?: string
+  provider?: 'youtube' | 'direct' | 'embed'
   title: string
   thumbnail: string
   itemId: string
@@ -53,6 +59,8 @@ export interface RoomQueueEntry {
 
 export interface RoomState {
   videoId: string
+  mediaUrl?: string
+  provider?: 'youtube' | 'direct' | 'embed'
   playing: boolean
   currentTime: number
   playbackRate: number

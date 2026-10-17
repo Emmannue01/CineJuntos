@@ -11,7 +11,7 @@ Aplicación React + Vite para mantener una lista de videos, conectar con amigos 
 ## Configuración local
 
 1. En Firebase Console, crea un proyecto y una aplicación web. Habilita Email/Password y Google en Authentication; crea Firestore y Realtime Database.
-2. Copia `.env.example` a `.env` y completa las credenciales de la aplicación web. La URL de RTDB debe corresponder a la instancia creada.
+2. Copia `.env.example` a `.env` y completa las credenciales de la aplicación web. La URL de RTDB debe corresponder a la instancia creada. Para ver resultados de búsqueda de YouTube dentro de la app, habilita YouTube Data API v3 en Google Cloud y configura `VITE_YOUTUBE_API_KEY`; sin ella se ofrece un enlace a la búsqueda web de YouTube. Las listas aceptan enlaces de YouTube, archivos de video/audio directos y páginas con reproductor incrustable; la sincronización completa está disponible para YouTube y medios directos.
 3. En la carpeta del proyecto, instala y ejecuta:
 
    ```bash

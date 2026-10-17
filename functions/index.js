@@ -14,6 +14,25 @@ function requireUid(request) {
 
 function inviteId(roomId, uid) { return `${roomId}_${uid}` }
 function friendshipId(uidA, uidB) { return [uidA, uidB].sort().join('_') }
+function mediaProvider(item) { return item.provider || 'youtube' }
+function sameMedia(left, right) {
+  const provider = mediaProvider(left)
+  return provider === mediaProvider(right)
+    && (provider === 'youtube' ? left.videoId === right.videoId : left.mediaUrl === right.mediaUrl)
+}
+function validateMedia(item) {
+  const provider = mediaProvider(item)
+  if (!['youtube', 'direct', 'embed'].includes(provider)) throw new HttpsError('invalid-argument', 'El tipo de contenido no es válido.')
+  if (provider === 'youtube' && !item.videoId) throw new HttpsError('invalid-argument', 'Falta el video de YouTube.')
+  if (provider !== 'youtube') {
+    if (typeof item.mediaUrl !== 'string' || item.mediaUrl.length > 1000) throw new HttpsError('invalid-argument', 'El enlace multimedia no es válido.')
+    try {
+      const url = new URL(item.mediaUrl)
+      if (url.protocol !== 'https:' || url.username || url.password) throw new Error('invalid URL')
+    } catch { throw new HttpsError('invalid-argument', 'El enlace multimedia debe ser HTTPS.') }
+  }
+  return provider
+}
 
 async function requireFriend(uid, friendUid) {
   const friendship = await db.doc(`friendships/${friendshipId(uid, friendUid)}`).get()
@@ -25,7 +44,9 @@ async function requireFriend(uid, friendUid) {
 exports.createRoom = onCall(async (request) => {
   const uid = requireUid(request)
   const { video, inviteUid, queue = [], watchlistId, currentItemId } = request.data || {}
-  if (!video?.videoId || !video?.title || !video?.thumbnail) throw new HttpsError('invalid-argument', 'Faltan los datos del video.')
+  if (!video?.title) throw new HttpsError('invalid-argument', 'Faltan los datos del video.')
+  validateMedia(video)
+  if (mediaProvider(video) === 'youtube' && !video.thumbnail) throw new HttpsError('invalid-argument', 'Falta la miniatura del video.')
   if (!Array.isArray(queue) || queue.length > 100) throw new HttpsError('invalid-argument', 'La cola no es válida.')
   if (inviteUid && inviteUid !== uid) await requireFriend(uid, inviteUid)
   let currentVideo = video
@@ -36,12 +57,13 @@ exports.createRoom = onCall(async (request) => {
     if (!listSnapshot.exists || !listSnapshot.data().memberUids?.includes(uid)) throw new HttpsError('permission-denied', 'No tienes acceso a esta lista.')
     for (const memberUid of listSnapshot.data().memberUids.filter((memberUid) => memberUid !== uid)) await requireFriend(uid, memberUid)
     const sourceSnapshot = await db.doc(`watchlists/${watchlistId}/videos/${currentItemId}`).get()
-    if (!sourceSnapshot.exists || sourceSnapshot.data().status !== 'pending' || sourceSnapshot.data().videoId !== video.videoId) throw new HttpsError('failed-precondition', 'El video ya no está disponible en esa lista.')
+    if (!sourceSnapshot.exists || sourceSnapshot.data().status !== 'pending' || !sameMedia(sourceSnapshot.data(), video)) throw new HttpsError('failed-precondition', 'El video ya no está disponible en esa lista.')
     currentVideo = sourceSnapshot.data()
     const queueSnapshots = await Promise.all(queue.map(async (item) => {
       if (item.listId !== watchlistId || !item.itemId) throw new HttpsError('invalid-argument', 'La cola mezcla listas o videos inválidos.')
       const snapshot = await db.doc(`watchlists/${watchlistId}/videos/${item.itemId}`).get()
       if (!snapshot.exists || snapshot.data().status !== 'pending') throw new HttpsError('failed-precondition', 'Uno de los videos de la cola ya no está pendiente.')
+      validateMedia(snapshot.data())
       return snapshot.data()
     }))
     verifiedQueue = queue.map((item, index) => ({ ...queueSnapshots[index], itemId: item.itemId, listId: watchlistId }))
@@ -51,10 +73,12 @@ exports.createRoom = onCall(async (request) => {
     ownerUid: uid,
     memberUids: [uid],
     invitedUids: inviteUid && inviteUid !== uid ? [inviteUid] : [],
-    videoId: String(currentVideo.videoId).slice(0, 32),
+    videoId: mediaProvider(currentVideo) === 'youtube' ? String(currentVideo.videoId).slice(0, 32) : '',
+    mediaUrl: mediaProvider(currentVideo) === 'youtube' ? null : String(currentVideo.mediaUrl).slice(0, 1000),
+    provider: mediaProvider(currentVideo),
     title: String(currentVideo.title).slice(0, 300),
     thumbnail: String(currentVideo.thumbnail).slice(0, 1000),
-    queue: verifiedQueue.map((item) => ({ videoId: String(item.videoId).slice(0, 32), title: String(item.title).slice(0, 300), thumbnail: String(item.thumbnail).slice(0, 1000), itemId: String(item.itemId).slice(0, 128), listId: String(item.listId).slice(0, 128) })),
+    queue: verifiedQueue.map((item) => ({ videoId: mediaProvider(item) === 'youtube' ? String(item.videoId).slice(0, 32) : '', mediaUrl: mediaProvider(item) === 'youtube' ? null : String(item.mediaUrl).slice(0, 1000), provider: mediaProvider(item), title: String(item.title).slice(0, 300), thumbnail: String(item.thumbnail || '').slice(0, 1000), itemId: String(item.itemId).slice(0, 128), listId: String(item.listId).slice(0, 128) })),
     watchlistId: watchlistId ? String(watchlistId).slice(0, 128) : null,
     currentItemId: currentItemId ? String(currentItemId).slice(0, 128) : null,
     createdAt: Date.now(),
@@ -76,7 +100,7 @@ exports.createRoom = onCall(async (request) => {
   }
   await batch.commit()
   await realtime.ref(`rooms/${roomRef.id}/members/${uid}`).set(true)
-  await realtime.ref(`rooms/${roomRef.id}/state`).set({ videoId: room.videoId, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
+  await realtime.ref(`rooms/${roomRef.id}/state`).set({ videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
   return { roomId: roomRef.id }
 })
 
@@ -102,20 +126,22 @@ exports.advanceRoom = onCall(async (request) => {
     if (next && nextRef && nextVideo?.exists) {
       transaction.update(roomRef, {
         videoId: next.videoId,
+        mediaUrl: next.mediaUrl || null,
+        provider: mediaProvider(next),
         title: next.title,
         thumbnail: next.thumbnail,
         currentItemId: next.itemId,
         watchlistId: next.listId,
         queue: room.queue.slice(1),
       })
-      return { changed: true, room: { ...room, ...next, currentItemId: next.itemId, watchlistId: next.listId, queue: room.queue.slice(1) } }
+      return { changed: true, room: { ...room, ...next, provider: mediaProvider(next), currentItemId: next.itemId, watchlistId: next.listId, queue: room.queue.slice(1) } }
     }
     transaction.update(roomRef, { status: 'ended', queue: [], endedAt: Date.now() })
     return { changed: true, room: { ...room, status: 'ended' } }
   })
   if (result.changed) {
     const room = result.room
-    await realtime.ref(`rooms/${roomId}/state`).set({ videoId: room.videoId, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+    await realtime.ref(`rooms/${roomId}/state`).set({ videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
     await realtime.ref(`rooms/${roomId}/queue`).set(room.queue || [])
   }
   return { ended: result.room.status === 'ended' }

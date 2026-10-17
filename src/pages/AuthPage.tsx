@@ -1,11 +1,18 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { Clapperboard, Film, LoaderCircle, Play, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bookmark, Clapperboard, Film, ListVideo, LoaderCircle, MessageCircle, Mic, Pause, Play, Search, Sparkles, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 
+const tutorialSteps = [
+  { title: 'Encuentra qué ver', text: 'Busca videos en YouTube o pega un enlace multimedia para guardarlo.' },
+  { title: 'Armen una lista juntos', text: 'Crea una lista conjunta con un amigo y agreguen ideas entre los dos.' },
+  { title: 'Miren al mismo tiempo', text: 'Inicia una sala desde la lista y el video se sincroniza en ambas pantallas.' },
+  { title: 'Hablen durante la función', text: 'Comenten por chat, manden reacciones o activen el micrófono.' },
+]
+
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
-  const { user, loading, login, loginWithGoogle, register } = useAuth()
+  const { user, loading, authError, clearAuthError, login, loginWithGoogle, register } = useAuth()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -14,9 +21,21 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const [tutorialPlaying, setTutorialPlaying] = useState(true)
   const isRegister = mode === 'register'
   const requestedRedirect = searchParams.get('redirect')
   const redirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') && !requestedRedirect.includes('\\') ? requestedRedirect : '/'
+
+  useEffect(() => {
+    if (!tutorialOpen || !tutorialPlaying) return
+    const timer = window.setTimeout(() => {
+      if (tutorialStep === tutorialSteps.length - 1) setTutorialPlaying(false)
+      else setTutorialStep((current) => current + 1)
+    }, 4800)
+    return () => window.clearTimeout(timer)
+  }, [tutorialOpen, tutorialPlaying, tutorialStep])
 
   if (loading) return <div className="auth-loading"><span className="spinner" /></div>
   if (user) return <Navigate to={redirect} replace />
@@ -36,7 +55,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   async function google() {
     setBusy(true)
     setError('')
-    try { await loginWithGoogle(); navigate(redirect, { replace: true }) }
+    clearAuthError()
+    try {
+      const result = await loginWithGoogle()
+      if (result === 'popup') navigate(redirect, { replace: true })
+    }
     catch (cause) { setError(readableError(cause)) }
     finally { setBusy(false) }
   }
@@ -64,6 +87,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="form-kicker"><Film size={16} /> {isRegister ? 'TU PRIMERA ESCENA' : 'QUÉ BUENO VERTE'}</div>
           <h2>{isRegister ? 'Crea tu cuenta' : 'Inicia sesión'}</h2>
           <p className="form-subtitle">{isRegister ? 'Arma tu rincón para ver películas juntos.' : 'Vuelve a donde quedó la última película.'}</p>
+          <button type="button" className="tutorial-trigger" onClick={() => { setTutorialStep(0); setTutorialPlaying(true); setTutorialOpen(true) }}><Play size={15} fill="currentColor" /> Cómo usar CineJuntos <span>· 30 s</span></button>
           <button type="button" className="google-button" onClick={google} disabled={busy}><GoogleMark /> Continuar con Google</button>
           <div className="form-divider"><span /> o con tu correo <span /></div>
           <form className="auth-form" onSubmit={submit}>
@@ -73,15 +97,26 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             </>}
             <label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@correo.com" /></label>
             <label>Contraseña<input required type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} /></label>
-            {error && <div className="form-error" role="alert">{error}</div>}
+            {(error || authError) && <div className="form-error" role="alert">{error || authError}</div>}
             <button className="primary-button auth-submit" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{isRegister ? 'Crear mi cuenta' : 'Entrar a CineJuntos'}<span aria-hidden="true">↗</span></button>
           </form>
           <p className="auth-switch">{isRegister ? '¿Ya tienes cuenta?' : '¿Todavía no tienes cuenta?'} <Link to={isRegister ? '/login' : '/registro'}>{isRegister ? 'Inicia sesión' : 'Regístrate gratis'}</Link></p>
           <p className="auth-legal">Al continuar aceptas nuestros términos de uso y política de privacidad.</p>
         </div>
       </section>
+      {tutorialOpen && <div className="tutorial-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setTutorialOpen(false) }}><section className="tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><header className="tutorial-header"><div><span className="section-kicker">RECORRIDO RÁPIDO · {String(tutorialStep + 1).padStart(2, '0')} / {String(tutorialSteps.length).padStart(2, '0')}</span><h2 id="tutorial-title">{tutorialSteps[tutorialStep].title}</h2></div><button type="button" className="tutorial-close" onClick={() => setTutorialOpen(false)} aria-label="Cerrar recorrido"><X size={19} /></button></header><TutorialScene step={tutorialStep} /><p className="tutorial-description">{tutorialSteps[tutorialStep].text}</p><div className="tutorial-progress" aria-label={`Escena ${tutorialStep + 1} de ${tutorialSteps.length}`}>{tutorialSteps.map((step, index) => <button type="button" key={step.title} className={index === tutorialStep ? 'active' : ''} onClick={() => { setTutorialStep(index); setTutorialPlaying(false) }} aria-label={`Ver escena ${index + 1}`} />)}</div><footer className="tutorial-controls"><button type="button" className="tutorial-step-button" onClick={() => { setTutorialStep(Math.max(0, tutorialStep - 1)); setTutorialPlaying(false) }} disabled={tutorialStep === 0} aria-label="Escena anterior"><ArrowLeft size={18} /></button><button type="button" className="tutorial-play-button" onClick={() => setTutorialPlaying(!tutorialPlaying)} aria-label={tutorialPlaying ? 'Pausar recorrido' : 'Reproducir recorrido'}>{tutorialPlaying ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}{tutorialPlaying ? 'Pausar' : 'Reproducir'}</button><button type="button" className="tutorial-step-button" onClick={() => { setTutorialStep(Math.min(tutorialSteps.length - 1, tutorialStep + 1)); setTutorialPlaying(false) }} disabled={tutorialStep === tutorialSteps.length - 1} aria-label="Siguiente escena"><ArrowRight size={18} /></button></footer></section></div>}
     </main>
   )
+}
+
+function TutorialScene({ step }: { step: number }) {
+  return <div className={`tutorial-scene tutorial-scene-${step}`} key={step}>
+    <div className="tutorial-app-bar"><span className="tutorial-app-mark"><Clapperboard size={14} /></span><strong>CineJuntos</strong><span className="tutorial-demo-avatar">CJ</span></div>
+    {step === 0 && <div className="tutorial-search-demo"><div className="tutorial-search-input"><Search size={14} /> Busca una peli o pega un enlace</div><div className="tutorial-poster-row"><span>AVENTURA</span><span>COMEDIA</span><span>DOCUMENTAL</span></div><div className="tutorial-demo-caption"><Play size={13} fill="currentColor" /> Añadir a la lista</div></div>}
+    {step === 1 && <div className="tutorial-list-demo"><div className="tutorial-list-heading"><ListVideo size={16} /><strong>Nuestra lista</strong><span><Users size={12} /> conjunta</span></div><div className="tutorial-list-row"><span className="tutorial-thumb thumb-one" /><span><b>La próxima película</b><small>Agregada por Alex</small></span><Bookmark size={15} /></div><div className="tutorial-list-row"><span className="tutorial-thumb thumb-two" /><span><b>Videos para el finde</b><small>Agregado por Sam</small></span><Bookmark size={15} /></div></div>}
+    {step === 2 && <div className="tutorial-watch-demo"><div className="tutorial-screen"><Film size={33} /><span>REPRODUCIENDO JUNTOS</span><i><Play size={12} fill="currentColor" /></i></div><div className="tutorial-sync-line"><span /><span>Sincronizado</span><span /></div><div className="tutorial-people"><span>Alex · viendo</span><span>Sam · viendo</span></div></div>}
+    {step === 3 && <div className="tutorial-chat-demo"><div className="tutorial-chat-message"><span>Alex</span><b>¡Esta escena es buenísima!</b></div><div className="tutorial-chat-message mine"><span>Tú</span><b>🍿 totalmente</b></div><div className="tutorial-chat-actions"><span><MessageCircle size={15} /> Mensajes</span><span><Mic size={15} /> Voz activa</span></div></div>}
+  </div>
 }
 
 function GoogleMark() {

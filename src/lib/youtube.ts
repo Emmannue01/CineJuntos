@@ -25,3 +25,28 @@ export async function getYouTubeMetadata(videoId: string) {
     return fallback
   }
 }
+
+export interface YouTubeSearchResult {
+  videoId: string
+  title: string
+  thumbnail: string
+}
+
+export async function searchYouTubeVideos(query: string, apiKey: string): Promise<YouTubeSearchResult[]> {
+  const params = new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '12', q: query, key: apiKey })
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`)
+  const data = await response.json() as {
+    error?: { message?: string }
+    items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } } }>
+  }
+  if (!response.ok) throw new Error(data.error?.message || 'No se pudo buscar en YouTube.')
+  return (data.items || []).flatMap((item) => {
+    const videoId = item.id?.videoId
+    if (!videoId) return []
+    return [{
+      videoId,
+      title: item.snippet?.title || `Video de YouTube (${videoId})`,
+      thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    }]
+  })
+}

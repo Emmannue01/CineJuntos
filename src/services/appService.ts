@@ -111,7 +111,7 @@ export async function reorderVideos(listId: string, videos: VideoItem[]) {
   await batch.commit()
 }
 
-export async function createRoom(video: Pick<VideoItem, 'videoId' | 'title' | 'thumbnail'>, inviteUid?: string, queue: RoomQueueEntry[] = [], watchlistId?: string, currentItemId?: string) {
+export async function createRoom(video: Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>, inviteUid?: string, queue: RoomQueueEntry[] = [], watchlistId?: string, currentItemId?: string) {
   const callable = httpsCallable<{ video: typeof video; inviteUid?: string; queue: RoomQueueEntry[]; watchlistId?: string; currentItemId?: string }, { roomId: string }>(functions, 'createRoom')
   const result = await callable({ video, inviteUid, queue, watchlistId, currentItemId })
   return result.data.roomId
@@ -183,7 +183,7 @@ export async function deleteRoom(roomId: string) {
 }
 
 export async function updateRoomQueue(roomId: string, uid: string, queue: VideoItem[]) {
-  await update(ref(rtdb, `rooms/${roomId}`), { queue: queue.map(({ videoId, title, thumbnail }) => ({ videoId, title, thumbnail })), queueUpdatedBy: uid })
+  await update(ref(rtdb, `rooms/${roomId}`), { queue: queue.map(({ videoId, mediaUrl, provider, title, thumbnail }) => ({ videoId, mediaUrl, provider, title, thumbnail })), queueUpdatedBy: uid })
 }
 
 export async function markRoomEnded(roomId: string) {
