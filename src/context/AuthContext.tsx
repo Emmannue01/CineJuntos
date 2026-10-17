@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthError('')
         } catch (error) {
           console.error('No se pudo cargar el perfil', error)
-          if (active) setAuthError(`Google pudo autenticarte, pero no se pudo guardar tu perfil: ${readableError(error)}`)
+          if (active) setAuthError(`Pudiste autenticarte, pero no se pudo guardar tu perfil: ${readableError(error)}`)
         }
       })
       void getRedirectResult(auth).then(async (result) => {
@@ -133,9 +133,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(currentProfile)
           setAuthError('')
         } catch (error) {
-          if (active) setAuthError(`Google inició sesión, pero no se pudo cargar tu perfil: ${readableError(error)}`)
+          if (active) setAuthError(`Pudiste autenticarte, pero no se pudo cargar tu perfil: ${readableError(error)}`)
         }
       }).catch((error) => {
+        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+        if (['auth/web-storage-unsupported', 'auth/missing-initial-state', 'auth/null-user'].includes(code)) {
+          return
+        }
         if (active) setAuthError(readableError(error))
       })
     })().catch((error) => {
@@ -177,31 +181,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(credential.user)
       setLoading(false)
       setAuthError('')
+      try {
+        const currentProfile = await ensureProfile(credential.user)
+        setProfile(currentProfile)
+      } catch (error) {
+        console.error('No se pudo asegurar el perfil tras iniciar sesión', error)
+      }
     },
     loginWithGoogle: async () => {
-      const authSdk = authSdkRef.current
-      if (!authSdk) throw new Error('Firebase Authentication todavía se está preparando. Inténtalo de nuevo.')
+      const authSdk = authSdkRef.current || await loadAuth()
       const { auth, googleProvider, signInWithPopup, signInWithRedirect } = authSdk
       setAuthError('')
-      const mobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-      if (mobileBrowser) {
-        const redirect = signInWithRedirect(auth, googleProvider)
-        await redirect
-        return 'redirect' as const
-      }
+
       try {
+        // Usar signInWithPopup en todos los entornos (móvil y escritorio).
+        // Los navegadores móviles modernos (iOS Safari, Android Chrome) gestionan popups sin problemas,
+        // mientras que signInWithRedirect pierde el estado de la sesión por el bloqueo de cookies de terceros.
         const credential = await signInWithPopup(auth, googleProvider)
         setUser(credential.user)
         setLoading(false)
         setAuthError('')
+        try {
+          const currentProfile = await ensureProfile(credential.user)
+          setProfile(currentProfile)
+        } catch (error) {
+          console.error('No se pudo asegurar el perfil tras login con Google', error)
+        }
         return 'popup' as const
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
-        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(code)) {
+
+        // Si el usuario cerró la ventana emergente, no forzar redirección
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+          throw error
+        }
+
+        // Si el navegador bloqueó completamente los popups (ej. webview restrictivo), recurrir a redirect como alternativa
+        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(code)) {
           await signInWithRedirect(auth, googleProvider)
           return 'redirect' as const
         }
+
         throw error
       }
     },

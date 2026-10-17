@@ -98,7 +98,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@correo.com" /></label>
             <label>Contraseña<input required type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} /></label>
             {(error || authError) && <div className="form-error" role="alert">{error || authError}</div>}
-            <button className="primary-button auth-submit" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{isRegister ? 'Crear mi cuenta' : 'Entrar a CineJuntos'}<span aria-hidden="true">↗</span></button>
+            <button type="submit" className="primary-button auth-submit" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{isRegister ? 'Crear mi cuenta' : 'Entrar a CineJuntos'}<span aria-hidden="true">↗</span></button>
           </form>
           <p className="auth-switch">{isRegister ? '¿Ya tienes cuenta?' : '¿Todavía no tienes cuenta?'} <Link to={isRegister ? '/login' : '/registro'}>{isRegister ? 'Inicia sesión' : 'Regístrate gratis'}</Link></p>
           <p className="auth-legal">Al continuar aceptas nuestros términos de uso y política de privacidad.</p>

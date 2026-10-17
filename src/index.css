@@ -3,8 +3,8 @@
 
 :root {
   font-family: 'DM Sans', sans-serif;
-  color: #eeeee7;
-  background: #171816;
+  color: var(--text, #eeeee7);
+  background: var(--ink, #12101a);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,12 +14,12 @@
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; background: #171816; }
-body { min-width: 320px; min-height: 100vh; margin: 0; }
+html { min-width: 320px; min-height: 100%; background: var(--ink, #12101a); }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--ink, #12101a); color: var(--text, #eeeee7); }
 button, input, select, textarea { font: inherit; }
 button, select { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .52; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #e4a46d; outline-offset: 3px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent, #b78af7); outline-offset: 3px; }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
-::selection { color: #171816; background: #efac76; }
+::selection { color: var(--selection-text, #12101a); background: var(--accent, #b78af7); }

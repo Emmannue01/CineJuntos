@@ -12,7 +12,7 @@ import { readableError } from '../lib/errors'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
 import { useSynchronizedMedia } from '../hooks/useSynchronizedMedia'
 import { useRoomVoice } from '../hooks/useRoomVoice'
-import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState } from '../services/appService'
+import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState, updateRoomVideo } from '../services/appService'
 import type { ChatMessage, Room, RoomState, UserProfile } from '../types'
 import { mediaEmbedUrl } from '../lib/media'
 
@@ -84,6 +84,7 @@ function RoomExperience(props: {
   const { room, uid, username, avatar, state, messages, friends, latency, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
+  const [videoUrl, setVideoUrl] = useState('')
   const messageEndRef = useRef<HTMLDivElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const ended = room.status === 'ended'
@@ -98,7 +99,7 @@ function RoomExperience(props: {
     roomId: room.id,
     uid,
     videoId: activeVideoId,
-    enabled: activeProvider === 'youtube',
+    enabled: false,
     onVideoEnded: advanceVideo,
   })
   const mediaPlayer = useSynchronizedMedia({ roomId: room.id, uid, mediaUrl: activeMediaUrl, enabled: activeProvider === 'direct', onVideoEnded: advanceVideo })
@@ -155,17 +156,39 @@ function RoomExperience(props: {
     catch { setPlayError('No se pudo copiar el enlace. Puedes copiarlo desde la barra del navegador.') }
   }
 
+  async function changeVideo() {
+    const url = prompt('Introduce la URL de YouTube (ej: https://www.youtube.com/watch?v=L2_S8GvIasM)')
+    if (!url) return
+    const videoId = new URL(url).searchParams.get('v')
+    if (!videoId) {
+      setPlayError('URL de YouTube no válida')
+      return
+    }
+    setBusy(true)
+    try {
+      await updateRoomVideo(room.id, uid, {
+        videoId,
+        mediaUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        provider: 'youtube',
+        title: 'Video cargado rápidamente',
+        thumbnail: '',
+      })
+      setPlayError('')
+    } catch (cause) { setPlayError(readableError(cause)) }
+    finally { setBusy(false) }
+  }
+
   const play = () => { setPlayError(''); player.play() }
   const pause = () => player.pause()
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
   const currentQueue = room.queue || []
 
   return <div className="room-page page-enter">
-    <div className="room-topline"><button className="back-link" onClick={() => void exitRoom()}><ArrowLeft size={16} /> Salir de la sala</button><span className="room-session-label"><span className={ended ? 'status-dot ended' : 'status-dot'} /> {ended ? 'FUNCIÓN TERMINADA' : 'SALA EN VIVO'} <span className="room-code">#{room.id.slice(0, 6).toUpperCase()}</span></span><button className="share-room-button" onClick={() => void copyLink()}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copiado' : 'Compartir enlace'}</button></div>
+    <div className="room-topline"><button className="back-link" onClick={() => void exitRoom()}><ArrowLeft size={16} /> Salir de la sala</button><span className="room-session-label"><span className={ended ? 'status-dot ended' : 'status-dot'} /> {ended ? 'FUNCIÓN TERMINADA' : 'SALA EN VIVO'} <span className="room-code">#{room.id.slice(0, 6).toUpperCase()}</span></span><div className="room-topline-actions"><button className="share-room-button" onClick={() => void copyLink()}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copiado' : 'Compartir enlace'}</button><button className="share-room-button" onClick={changeVideo}><Settings2 size={15} /> Cambiar video</button></div></div>
     <div className="room-title"><div><span className="section-kicker">ESTÁN VIENDO</span><h1>{room.title}</h1></div><div className="room-watchers">{partner ? <><StatusAvatar uid={partner.uid} name={partner.displayName} photoURL={partner.avatar} size="small" /><span><strong>{partner.displayName}</strong><small>está en la sala</small></span></> : pendingInviteUid ? <><span className="waiting-avatar"><Clock3 size={15} /></span><span><strong>Esperando a tu amigo</strong><small>La invitación está en camino</small></span></> : <><span className="waiting-avatar"><UsersIcon /></span><span><strong>Solo por ahora</strong><small>Invita a alguien para compartir</small></span></>}</div></div>
     {error && <div className="inline-alert" role="alert">{error}<button onClick={() => setError('')}>Cerrar</button></div>}{playError && <div className="inline-alert" role="alert">{playError}<button onClick={() => setPlayError('')}>Cerrar</button></div>}
     <div className="room-layout">
-      <section className="player-column"><div className="player-frame">{activeProvider === 'youtube' ? <div className="yt-player" ref={youtubePlayer.mountRef} /> : activeProvider === 'direct' ? <video className="native-player" ref={mediaPlayer.mountRef} src={activeMediaUrl} playsInline /> : <iframe className="external-player" src={mediaEmbedUrl(activeMediaUrl, 'embed')} title={room.title} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}<div className={`player-loading ${player.ready || activeProvider === 'embed' ? 'is-ready' : ''}`}>{activeProvider === 'embed' ? <span>Este reproductor puede no sincronizarse con la sala.</span> : <><LoaderCircle className="spin" size={22} /><span>Preparando la pantalla…</span></>}</div>{ended && <div className="player-ended"><div className="ended-mark"><Check size={26} /></div><span className="section-kicker">FIN DE LA FUNCIÓN</span><h2>Qué buen plan.</h2><p>Ya vieron todo lo que había en la cola.</p><button className="primary-button" onClick={() => void exitRoom()}>Volver al inicio <ArrowLeft size={16} /></button></div>}</div>
+      <section className="player-column"><div className="player-frame">{activeProvider === 'youtube' ? <iframe className="external-player" src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`} title={room.title} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : activeProvider === 'direct' ? <video className="native-player" ref={mediaPlayer.mountRef} src={activeMediaUrl} playsInline /> : <iframe className="external-player" src={mediaEmbedUrl(activeMediaUrl, 'embed')} title={room.title} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}<div className={`player-loading ${player.ready || activeProvider === 'embed' ? 'is-ready' : ''}`}>{activeProvider === 'embed' ? <span>Este reproductor puede no sincronizarse con la sala.</span> : <><LoaderCircle className="spin" size={22} /><span>Preparando la pantalla…</span></>}</div>{ended && <div className="player-ended"><div className="ended-mark"><Check size={26} /></div><span className="section-kicker">FIN DE LA FUNCIÓN</span><h2>Qué buen plan.</h2><p>Ya vieron todo lo que había en la cola.</p><button className="primary-button" onClick={() => void exitRoom()}>Volver al inicio <ArrowLeft size={16} /></button></div>}</div>
         <div className="player-controls"><button className="player-play" onClick={state?.playing ? pause : play} aria-label={state?.playing ? 'Pausar' : 'Reproducir'} disabled={!player.ready || ended}>{state?.playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><span className="time-readout">{formatTime(player.currentTime)} <span>/</span> {formatTime(player.duration)}</span><input aria-label="Posición del video" className="progress-range" type="range" min={0} max={Math.max(player.duration, 1)} value={Math.min(player.currentTime, Math.max(player.duration, 1))} onChange={(event) => player.seek(Number(event.target.value))} disabled={!player.ready || ended} /><label className="speed-select"><Settings2 size={15} /><select value={speed} onChange={(event) => { const value = Number(event.target.value); setSpeed(event.target.value); player.setRate(value) }} aria-label="Velocidad de reproducción"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><button className="bare-icon fullscreen-control" title="Pantalla completa" onClick={player.fullscreen}><Expand size={17} /></button></div>
         <div className="player-underbar"><span><span className={partner ? 'live-dot' : 'live-dot offline'} /> {partner ? `${partner.displayName} ${partnerOnlineLabel(partner.uid)}` : pendingInviteUid ? 'Esperando confirmación' : 'Comparte el enlace para invitar'}</span>{activeProvider === 'embed' ? <span><ExternalLink size={14} /><a href={activeMediaUrl} target="_blank" rel="noreferrer">Abrir contenido en su sitio</a><small>No todos los reproductores permiten sincronización.</small></span> : <span><Volume2 size={14} /> Desfase corregido automáticamente</span>}</div>
         <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next">{currentQueue[0].thumbnail && <img src={currentQueue[0].thumbnail} alt="" />}<span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>

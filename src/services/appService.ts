@@ -186,6 +186,16 @@ export async function updateRoomQueue(roomId: string, uid: string, queue: VideoI
   await update(ref(rtdb, `rooms/${roomId}`), { queue: queue.map(({ videoId, mediaUrl, provider, title, thumbnail }) => ({ videoId, mediaUrl, provider, title, thumbnail })), queueUpdatedBy: uid })
 }
 
-export async function markRoomEnded(roomId: string) {
+export async function updateRoomVideo(roomId: string, uid: string, video: Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>) {
+  await writeRoomState(roomId, uid, {
+    videoId: video.videoId,
+    mediaUrl: video.mediaUrl,
+    provider: video.provider,
+    playing: true,
+    currentTime: 0,
+  })
+}
+
+export async function markRoomEnded(roomId: string, uid: string) {
   await updateDoc(doc(db, 'rooms', roomId), { status: 'ended', endedAt: serverTimestamp() })
 }
