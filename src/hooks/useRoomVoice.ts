@@ -1,0 +1,127 @@
+import { useEffect, useRef, useState } from 'react'
+import { onChildAdded, onDisconnect, onValue, push, ref, remove, set, type DataSnapshot } from 'firebase/database'
+import { rtdb } from '../firebase/database'
+
+type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'waiting' | 'error'
+
+export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
+  const [status, setStatus] = useState<VoiceStatus>('idle')
+  const [muted, setMuted] = useState(false)
+  const [active, setActive] = useState(false)
+  const [error, setError] = useState('')
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const connectionRef = useRef<RTCPeerConnection | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const stopsRef = useRef<Array<() => void>>([])
+  const remoteDescriptionReadyRef = useRef(false)
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
+  const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
+  const signalPath = `rooms/${roomId}/voice/${callerUid}`
+
+  function closeConnection() {
+    stopsRef.current.forEach((stop) => stop())
+    stopsRef.current = []
+    connectionRef.current?.close()
+    connectionRef.current = null
+    setActive(false)
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    remoteDescriptionReadyRef.current = false
+    pendingCandidatesRef.current = []
+    setRemoteStream(null)
+    setMuted(false)
+    setStatus('idle')
+  }
+
+  async function start() {
+    if (!peerUid || connectionRef.current) return
+    setError('')
+    setStatus('connecting')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+      connectionRef.current = connection
+      setActive(true)
+      connection.ontrack = (event) => setRemoteStream(event.streams[0] || null)
+      connection.onconnectionstatechange = () => {
+        if (connection.connectionState === 'connected') setStatus('connected')
+        else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') setStatus('waiting')
+      }
+      connection.onicecandidate = (event) => {
+        if (event.candidate) void push(ref(rtdb, `${signalPath}/candidates/${uid}`), event.candidate.toJSON())
+      }
+      stream.getTracks().forEach((track) => connection.addTrack(track, stream))
+
+      const remoteUid = uid === callerUid ? peerUid : callerUid
+      const closedRef = ref(rtdb, `${signalPath}/closed/${uid}`)
+      const peerClosedRef = ref(rtdb, `${signalPath}/closed/${peerUid}`)
+      await remove(closedRef)
+      await onDisconnect(closedRef).set(true)
+      stopsRef.current.push(onValue(peerClosedRef, (snapshot) => {
+        if (snapshot.val() === true) closeConnection()
+      }))
+      const addCandidate = async (snapshot: DataSnapshot) => {
+        const candidate = snapshot.val() as RTCIceCandidateInit | null
+        if (!candidate) return
+        if (remoteDescriptionReadyRef.current) await connection.addIceCandidate(candidate)
+        else pendingCandidatesRef.current.push(candidate)
+      }
+      stopsRef.current.push(onChildAdded(ref(rtdb, `${signalPath}/candidates/${remoteUid}`), (snapshot) => {
+        void addCandidate(snapshot).catch(() => setStatus('waiting'))
+      }))
+
+      if (uid === callerUid) {
+        await remove(ref(rtdb, signalPath))
+        stopsRef.current.push(onValue(ref(rtdb, `${signalPath}/answer`), async (snapshot) => {
+          if (!snapshot.exists() || connection.remoteDescription) return
+          await connection.setRemoteDescription(snapshot.val() as RTCSessionDescriptionInit)
+          remoteDescriptionReadyRef.current = true
+          await Promise.all(pendingCandidatesRef.current.splice(0).map((candidate) => connection.addIceCandidate(candidate)))
+        }))
+        const offer = await connection.createOffer()
+        await connection.setLocalDescription(offer)
+        await set(ref(rtdb, `${signalPath}/offer`), offer)
+      } else {
+        stopsRef.current.push(onValue(ref(rtdb, `${signalPath}/offer`), async (snapshot) => {
+          if (!snapshot.exists() || connection.remoteDescription) return
+          await connection.setRemoteDescription(snapshot.val() as RTCSessionDescriptionInit)
+          remoteDescriptionReadyRef.current = true
+          await Promise.all(pendingCandidatesRef.current.splice(0).map((candidate) => connection.addIceCandidate(candidate)))
+          const answer = await connection.createAnswer()
+          await connection.setLocalDescription(answer)
+          await set(ref(rtdb, `${signalPath}/answer`), answer)
+        }))
+      }
+      setStatus('waiting')
+    } catch (cause) {
+      closeConnection()
+      const errorName = cause instanceof DOMException ? cause.name : ''
+      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : 'No se pudo iniciar el chat de voz. Comprueba el micrófono y vuelve a intentarlo.')
+      setStatus('error')
+    }
+  }
+
+  function toggleMute() {
+    const nextMuted = !muted
+    streamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !nextMuted })
+    setMuted(nextMuted)
+  }
+
+  async function stop() {
+    closeConnection()
+    try {
+      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
+      await set(ref(rtdb, `${signalPath}/closed/${uid}`), true)
+      await onDisconnect(ref(rtdb, `${signalPath}/closed/${uid}`)).cancel()
+    } catch { /* The local microphone is already stopped. */ }
+  }
+
+  useEffect(() => () => {
+    stopsRef.current.forEach((stopListener) => stopListener())
+    connectionRef.current?.close()
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+  }, [])
+
+  return { status, muted, error, stream: remoteStream, active, start, stop, toggleMute }
+}
