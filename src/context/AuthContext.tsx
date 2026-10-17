@@ -101,19 +101,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authSdkRef.current = authSdk
       const { auth, onAuthStateChanged, getRedirectResult } = authSdk
       if (!active) return
-      try {
-        const result = await getRedirectResult(auth)
-        if (result) {
-          const resultProfile = await ensureProfile(result.user)
-          if (!active) return
-          setProfile(resultProfile)
-          setUser(result.user)
-          setAuthError('')
-        }
-      } catch (error) {
-        if (active) setAuthError(readableError(error))
-      }
-      if (!active) return
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (!active) return
         if (registrationInProgressRef.current) return
@@ -123,20 +110,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false)
           return
         }
+        setUser(currentUser)
+        setProfile(null)
+        setLoading(false)
         try {
           const currentProfile = await ensureProfile(currentUser)
           if (!active) return
           setProfile(currentProfile)
-          setUser(currentUser)
           setAuthError('')
         } catch (error) {
           console.error('No se pudo cargar el perfil', error)
           if (active) setAuthError(`Google pudo autenticarte, pero no se pudo guardar tu perfil: ${readableError(error)}`)
-          setProfile(null)
-          setUser(null)
-        } finally {
-          if (active) setLoading(false)
         }
+      })
+      void getRedirectResult(auth).then(async (result) => {
+        if (!result || !active) return
+        setUser(result.user)
+        setLoading(false)
+        try {
+          const currentProfile = await ensureProfile(result.user)
+          if (!active) return
+          setProfile(currentProfile)
+          setAuthError('')
+        } catch (error) {
+          if (active) setAuthError(`Google inició sesión, pero no se pudo cargar tu perfil: ${readableError(error)}`)
+        }
+      }).catch((error) => {
+        if (active) setAuthError(readableError(error))
       })
     })().catch((error) => {
       console.error('No se pudo inicializar Firebase Authentication', error)
@@ -174,9 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login: async (email, password) => {
       const { auth, signInWithEmailAndPassword } = await loadAuth()
       const credential = await signInWithEmailAndPassword(auth, email, password)
-      const currentProfile = await ensureProfile(credential.user)
-      setProfile(currentProfile)
       setUser(credential.user)
+      setLoading(false)
+      setAuthError('')
     },
     loginWithGoogle: async () => {
       const authSdk = authSdkRef.current
@@ -192,9 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const credential = await signInWithPopup(auth, googleProvider)
-        const currentProfile = await ensureProfile(credential.user)
-        setProfile(currentProfile)
         setUser(credential.user)
+        setLoading(false)
+        setAuthError('')
         return 'popup' as const
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''

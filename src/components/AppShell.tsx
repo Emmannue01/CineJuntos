@@ -10,7 +10,7 @@ const links = [
 ]
 
 export default function AppShell() {
-  const { user, profile, logout } = useAuth()
+  const { user, profile, authError, clearAuthError, logout } = useAuth()
   const navigate = useNavigate()
   usePresence(user?.uid)
   return (
@@ -31,6 +31,7 @@ export default function AppShell() {
       </aside>
       <div className="main-column">
         <header className="topbar"><NavLink to="/" className="mobile-brand"><span className="brand-mark"><Clapperboard size={17} /></span>Cine<span className="brand-light">Juntos</span></NavLink><div className="topbar-note">Tu próxima noche de cine empieza aquí <span>✳</span></div><NavLink to="/perfil" className="topbar-avatar" aria-label="Ir a mi perfil"><Avatar name={profile?.displayName || 'Cinefilo'} url={profile?.avatar} /></NavLink></header>
+        {authError && <div className="inline-alert auth-session-alert" role="alert">{authError}<button onClick={clearAuthError}>Cerrar</button></div>}
         <main className="page-content"><Outlet /></main>
       </div>
       <nav className="mobile-tabs" aria-label="Navegación principal">
