@@ -113,11 +113,6 @@ export async function reorderVideos(listId: string, videos: VideoItem[]) {
 
 export async function createRoom(video: Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>, inviteUid?: string, queue: RoomQueueEntry[] = [], watchlistId?: string, currentItemId?: string) {
   const roomId = Math.random().toString(36).substring(2, 10).toUpperCase()
-  const memberUids = [inviteUid ? inviteUid : ''] // Temporarily empty if no inviteUid, will be updated on join
-
-  // If we have a creator, we should ideally pass their UID.
-  // Assuming the caller handles the current user's addition or we add a dummy.
-  // Since we don't have currentUid here, we'll set the room structure and let joinRoom handle the creator.
 
   await setDoc(doc(db, 'rooms', roomId), {
     ...video,
@@ -139,7 +134,7 @@ export async function advanceRoom(roomId: string, currentItemId?: string) {
 
   const room = roomSnap.data() as Room
   const queue = room.queue || []
-  const currentIndex = queue.findIndex(item => item.id === currentItemId)
+  const currentIndex = queue.findIndex(item => item.itemId === currentItemId)
 
   if (currentIndex === -1 || currentIndex === queue.length - 1) {
     await updateDoc(roomRef, { status: 'ended', endedAt: Date.now() })
@@ -148,7 +143,7 @@ export async function advanceRoom(roomId: string, currentItemId?: string) {
 
   const nextItem = queue[currentIndex + 1]
   await updateDoc(roomRef, {
-    currentItemId: nextItem.id,
+    currentItemId: nextItem.itemId,
     videoId: nextItem.videoId,
     mediaUrl: nextItem.mediaUrl,
     provider: nextItem.provider,
