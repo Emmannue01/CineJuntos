@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDown, ArrowUp, Bookmark, Check, Clapperboard, Clock3, Film, Globe, Link2, LoaderCircle, Lock, Pencil, Play, Plus, Search, Share2, Trash2, Tv2, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Bookmark, Check, Clapperboard, Clock3, Film, Globe, Link2, LoaderCircle, Lock, Pencil, Play, Plus, Trash2, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 import { parseMediaLink } from '../lib/media'
@@ -15,7 +15,6 @@ export default function WatchlistPage() {
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [link, setLink] = useState('')
-  const [shareWith, setShareWith] = useState('')
   const [loadingVideo, setLoadingVideo] = useState(false)
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
@@ -93,7 +92,7 @@ export default function WatchlistPage() {
     setBusy(video.id); setError('')
     try {
       const queue = pending.slice(pending.findIndex((item) => item.id === video.id) + 1).map((item) => ({ videoId: item.videoId, title: item.title, thumbnail: item.thumbnail, itemId: item.id, listId: selectedId }))
-      const roomId = await createRoom({ videoId: video.videoId, mediaUrl: video.mediaUrl, provider: video.provider, title: video.title, thumbnail: video.thumbnail }, shareWith || undefined, queue, selectedId, video.id)
+      const roomId = await createRoom({ videoId: video.videoId, mediaUrl: video.mediaUrl, provider: video.provider, title: video.title, thumbnail: video.thumbnail }, undefined, queue, selectedId, video.id)
       navigate(`/sala/${roomId}`)
     } catch (cause) { setError(readableError(cause)) }
     finally { setBusy('') }

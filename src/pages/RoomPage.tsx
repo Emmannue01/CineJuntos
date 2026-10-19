@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, Film, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2, X } from 'lucide-react'
-import { onValue, ref } from 'firebase/database'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/AppShell'
 import StatusAvatar from '../components/StatusAvatar'
-import { rtdb } from '../firebase/database'
 import { readableError } from '../lib/errors'
+import { usePresence } from '../hooks/usePresence'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
 import { useSynchronizedMedia } from '../hooks/useSynchronizedMedia'
 import { useRoomVoice } from '../hooks/useRoomVoice'
@@ -305,10 +304,7 @@ function partnerOnlineLabel(uid: string) {
 }
 
 function PartnerPresence({ uid }: { uid: string }) {
-  const [online, setOnline] = useState(false)
-  useEffect(() => {
-    return onValue(ref(rtdb, `presence/${uid}`), (snapshot) => setOnline(snapshot.val()?.online === true))
-  }, [uid])
+  const online = usePresence(uid)
   return <>{online ? 'está conectado' : 'se desconectó'}</>
 }
 

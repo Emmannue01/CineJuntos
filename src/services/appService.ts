@@ -14,6 +14,7 @@ export interface FriendRequest {
   status: 'pending' | 'accepted' | 'declined'
   createdAt: number
   sender?: UserProfile
+  toUser?: UserProfile
 }
 
 export function subscribeFriends(uid: string, callback: (profiles: UserProfile[]) => void) {

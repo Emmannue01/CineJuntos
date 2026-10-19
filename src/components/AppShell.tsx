@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Bookmark, Clapperboard, Home, LogOut, Monitor, Moon, Sun, Users, UserRound } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { usePresence } from '../hooks/usePresence'
+import { usePublishPresence } from '../hooks/usePresence'
 import { useTheme } from '../hooks/useTheme'
 
 const links = [
@@ -17,7 +17,7 @@ export default function AppShell() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  usePresence(user?.uid)
+  usePublishPresence(user?.uid)
 
   useEffect(() => {
     if (!menuOpen) return
