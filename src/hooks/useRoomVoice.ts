@@ -184,9 +184,14 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     } catch { /* The local microphone is already stopped. */ }
   }
 
-  // Auto-conectar al entrar a la sala (cuando hay peerUid)
+  // Auto-conectar al entrar a la sala (cuando hay peerUid válido)
   useEffect(() => {
-    if (!peerUid) return
+    if (!peerUid) {
+      // No hay compañero aún, mantener idle
+      setStatus('idle')
+      setActive(false)
+      return
+    }
     initRef.current = false
     closeConnection()
     void start()
