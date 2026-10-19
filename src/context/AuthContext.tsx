@@ -193,16 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { auth, googleProvider, signInWithPopup, signInWithRedirect } = authSdk
       setAuthError('')
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-
       try {
-        // En móvil usar signInWithRedirect directamente (más compatible que popup en iOS Safari y Android Chrome)
-        if (isMobile) {
-          await signInWithRedirect(auth, googleProvider)
-          return 'redirect' as const
-        }
-
-        // En escritorio usar popup primero
+        // Siempre intentar popup primero (más confiable en móvil y escritorio)
         const credential = await signInWithPopup(auth, googleProvider)
         setUser(credential.user)
         setLoading(false)
