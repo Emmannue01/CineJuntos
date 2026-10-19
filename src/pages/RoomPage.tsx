@@ -195,7 +195,7 @@ function RoomExperience(props: {
         <div className="voice-controls">
           <div className={`voice-status voice-${voice.status}`}>
             <span className="live-dot" />
-            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (esperando a otro dispositivo…)': 'Chat de voz'}
+            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando a la sala de voz…' : 'Chat de voz'}
           </div>
           {voice.status === 'connected' && (
             <div className="voice-actions">
@@ -209,14 +209,14 @@ function RoomExperience(props: {
               </button>
             </div>
           )}
-          {(voice.status === 'error' || voice.status === 'waiting') && (
+          {voice.status === 'error' && (
             <button className="voice-action" onClick={() => voice.retry()} title="Reintentar conexión de voz">
               <Mic size={16} />
               <span>Reintentar</span>
             </button>
           )}
           <div className="voice-hint" style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
-            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? 'Cualquier persona puede unirse a esta sala de voz' : ''}
+            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? 'Cualquier persona puede unirse a esta sala de voz' : voice.status === 'error' ? 'Intenta de nuevo' : ''}
           </div>
           <audio ref={remoteAudioRef} autoPlay />
         </div>
