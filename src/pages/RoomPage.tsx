@@ -201,11 +201,9 @@ function RoomExperience(props: {
             <div className="voice-actions">
               <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>
                 {voice.muted ? <MicOff size={16} /> : <Mic size={16} />}
-                <span>{voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}</span>
               </button>
               <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz">
                 <PhoneOff size={16} />
-                <span>Colgar</span>
               </button>
             </div>
           )}
