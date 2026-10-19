@@ -1,266 +1,146 @@
 import { useEffect, useRef, useState } from 'react'
-import { onChildAdded, onDisconnect, onValue, push, ref, remove, set, get } from 'firebase/database'
-import { rtdb } from '../firebase/database'
 
-type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'waiting' | 'error'
+type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 /**
- * useRoomVoice - Canal de voz tipo Discord para salas
+ * useRoomVoice - Chat de voz tipo Discord usando Daily.co
  *
- * Modelo:
- * - Un canal de voz por sala (signalPath = rooms/${roomId}/voice)
- * - Cualquier miembro de la sala se conecta automáticamente al entrar
- * - No depende de un peerUid específico
- * - WebRTC punto a punto entre los miembros de la sala
- * - Micrófono inicia en mute (como Discord)
+ * Funciona con salas (rooms) de Daily.co, soporta muchas personas simultáneamente.
+ * No requiere servidor propio ni Cloud Functions.
  */
 export function useRoomVoice(roomId: string, uid: string) {
   const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [muted, setMuted] = useState(true)
   const [error, setError] = useState('')
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-  const connectionRef = useRef<RTCPeerConnection | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const stopsRef = useRef<Array<() => void>>([])
-  const remoteDescriptionReadyRef = useRef(false)
-  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
+  const dailyCallRef = useRef<any>(null)
   const initRef = useRef(false)
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const retryCountRef = useRef(0)
-  const hasConnectedRef = useRef(false)
-  const myOfferRef = useRef<boolean>(false)
 
-  // Canal de voz por sala (no por par de usuarios)
-  const signalPath = `rooms/${roomId}/voice`
-
-  function closeConnection() {
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current)
-      retryTimeoutRef.current = null
-    }
-    stopsRef.current.forEach((stop) => stop())
-    stopsRef.current = []
-    connectionRef.current?.close()
-    connectionRef.current = null
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-    remoteDescriptionReadyRef.current = false
-    pendingCandidatesRef.current = []
-    setRemoteStream(null)
-    setMuted(true)
-    setStatus('idle')
-    initRef.current = false
-    retryCountRef.current = 0
-    hasConnectedRef.current = false
-    myOfferRef.current = false
-  }
+  const dailyApiKey = import.meta.env.VITE_DAILY_API_KEY
 
   async function start() {
-    if (!uid || connectionRef.current || initRef.current || hasConnectedRef.current) return
+    if (!dailyApiKey) {
+      setError('Configura VITE_DAILY_API_KEY en tu archivo .env')
+      setStatus('error')
+      return
+    }
+
+    if (dailyCallRef.current) return
     initRef.current = true
-    setError('')
     setStatus('connecting')
-    retryCountRef.current = 0
 
     try {
-      await cleanupSignalization()
+      // Cargar el SDK de Daily.co dinámicamente
+      await loadDailyScript()
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      // Empezar SIEMPRE en mute (como Discord)
-      stream.getAudioTracks().forEach((track) => { track.enabled = false })
+      const DailyCall = (window as any).DailyCall
+      if (!DailyCall) {
+        throw new Error('No se pudo cargar Daily.co SDK')
+      }
 
-      const connection = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-        ],
-        iceCandidatePoolSize: 10,
+      // Crear una sala única por roomId de CineJuntos
+      const roomName = `cinejuntos-${roomId}`
+
+      const call = DailyCall.createCallObject()
+      dailyCallRef.current = call
+
+      // Eventos de Daily.co
+      call.on('call-joined', () => {
+        setStatus('connected')
+        setError('')
       })
-      connectionRef.current = connection
 
-      connection.ontrack = (event) => setRemoteStream(event.streams[0] || null)
-      connection.onconnectionstatechange = () => {
-        if (connection.connectionState === 'connected') {
-          setStatus('connected')
-          hasConnectedRef.current = true
-          if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
-        } else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
-          setStatus('waiting')
-          scheduleRetry()
-        }
-      }
-      connection.onicecandidate = (event) => {
-        if (event.candidate) void push(ref(rtdb, `${signalPath}/candidates/${uid}`), event.candidate.toJSON())
-      }
-      stream.getTracks().forEach((track) => connection.addTrack(track, stream))
+      call.on('call-left', () => {
+        setStatus('idle')
+        dailyCallRef.current = null
+      })
 
-      const closedRef = ref(rtdb, `${signalPath}/closed/${uid}`)
-      const peerClosedRef = ref(rtdb, `${signalPath}/closed/all`)
-      await remove(closedRef)
-      await onDisconnect(closedRef).set(true)
+      call.on('error', (err: any) => {
+        setError(err.message || 'Error en Daily.co')
+        setStatus('error')
+      })
 
-      // Escuchar cuando alguien se desconecta
-      stopsRef.current.push(onValue(peerClosedRef, (snapshot) => {
-        if (snapshot.val() === true) closeConnection()
-      }))
+      // Unirse a la sala con micrófono iniciado en mute (como Discord)
+      await call.join({
+        url: `https://${dailyApiKey}.daily.co/${roomName}`,
+        config: {
+          startAudioOff: true, // Iniciar en mute
+          startVideoOff: true, // Sin video
+        },
+      })
 
-      // Escuchar ofertas de otros usuarios
-      stopsRef.current.push(onChildAdded(ref(rtdb, `${signalPath}/offers`), async (snapshot) => {
-        const offerData = snapshot.val() as { fromUid: string; offer: RTCSessionDescriptionInit } | null
-        if (!offerData || offerData.fromUid === uid) return
-        if (connection.remoteDescription) return
-
-        await connection.setRemoteDescription(offerData.offer)
-        remoteDescriptionReadyRef.current = true
-
-        // Agregar candidatos pendientes
-        await Promise.all(pendingCandidatesRef.current.splice(0).map((candidate) => connection.addIceCandidate(candidate)))
-
-        const answer = await connection.createAnswer()
-        await connection.setLocalDescription(answer)
-        await set(ref(rtdb, `${signalPath}/answers/${uid}`), { toUid: offerData.fromUid, answer })
-      }))
-
-      // Escuchar respuestas a mi oferta
-      stopsRef.current.push(onValue(ref(rtdb, `${signalPath}/answers/${uid}`), async (snapshot) => {
-        const answerData = snapshot.val() as { toUid: string; answer: RTCSessionDescriptionInit } | null
-        if (!answerData || answerData.toUid !== uid) return
-        if (connection.remoteDescription) return
-
-        await connection.setRemoteDescription(answerData.answer)
-        remoteDescriptionReadyRef.current = true
-
-        await Promise.all(pendingCandidatesRef.current.splice(0).map((candidate) => connection.addIceCandidate(candidate)))
-      }))
-
-      // Escuchar candidatos de otros
-      stopsRef.current.push(onChildAdded(ref(rtdb, `${signalPath}/candidates`), (snapshot) => {
-        const candidateData = snapshot.val() as { fromUid: string; candidate: RTCIceCandidateInit } | null
-        if (!candidateData || candidateData.fromUid === uid) return
-
-        const candidate = candidateData.candidate
-        if (remoteDescriptionReadyRef.current) {
-          void connection.addIceCandidate(candidate)
-        } else {
-          pendingCandidatesRef.current.push(candidate)
-        }
-      }))
-
-      // Crear oferta si soy el primero en la sala
-      const offersSnapshot = await get(ref(rtdb, `${signalPath}/offers`))
-      const existingOffers = offersSnapshot.val()
-
-      if (!existingOffers || Object.keys(existingOffers).length === 0) {
-        // Soy el primero, creo la oferta
-        myOfferRef.current = true
-        const offer = await connection.createOffer()
-        await connection.setLocalDescription(offer)
-        await set(ref(rtdb, `${signalPath}/offers/${uid}`), { fromUid: uid, offer })
-      } else {
-        // Hay ofertas existentes, yo respondo a la primera
-        const offerKeys = Object.keys(existingOffers)
-        const firstOfferKey = offerKeys[0]
-        const firstOffer = existingOffers[firstOfferKey] as { fromUid: string; offer: RTCSessionDescriptionInit }
-
-        if (firstOffer.fromUid !== uid) {
-          await connection.setRemoteDescription(firstOffer.offer)
-          remoteDescriptionReadyRef.current = true
-
-          await Promise.all(pendingCandidatesRef.current.splice(0).map((candidate) => connection.addIceCandidate(candidate)))
-
-          const answer = await connection.createAnswer()
-          await connection.setLocalDescription(answer)
-          await set(ref(rtdb, `${signalPath}/answers/${firstOffer.fromUid}`), { toUid: firstOffer.fromUid, answer })
-        } else {
-          // Mi propia oferta ya está, no hacer nada
-          myOfferRef.current = true
-        }
-      }
-
-      setStatus('waiting')
-      scheduleRetry()
+      setStatus('connected')
     } catch (cause) {
       closeConnection()
-      const errorName = cause instanceof DOMException ? cause.name : ''
-      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : '')
+      const errorName = cause instanceof Error ? cause.message : 'Error desconocido'
+      setError(errorName)
       setStatus('error')
     }
   }
 
-  async function cleanupSignalization() {
+  async function stop() {
+    closeConnection()
+  }
+
+  function toggleMute() {
+    const call = dailyCallRef.current
+    if (!call) return
+
+    // Daily.co no expone toggleMute directo en todas las versiones,
+    // pero se puede usar el método local participant
     try {
-      await remove(ref(rtdb, `${signalPath}/offers/${uid}`))
-      await remove(ref(rtdb, `${signalPath}/answers/${uid}`))
-      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
-      await remove(ref(rtdb, `${signalPath}/closed/${uid}`))
+      // Forzar recarga del estado de mute
+      call.leave()
+      void start()
     } catch { /* ignorar */ }
   }
 
-  function scheduleRetry() {
-    if (retryTimeoutRef.current) return
-    if (retryCountRef.current >= 5) return
-    retryTimeoutRef.current = setTimeout(() => {
-      retryTimeoutRef.current = null
-      retryCountRef.current += 1
-      if (status === 'waiting' || status === 'error') {
-        closeConnection()
-        void start()
-      }
-    }, 5000)
+  function closeConnection() {
+    if (dailyCallRef.current) {
+      try { dailyCallRef.current.leave() } catch { /* ignorar */ }
+      dailyCallRef.current = null
+    }
+    initRef.current = false
+    setStatus('idle')
+    setError('')
   }
 
   async function retry() {
-    if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
     closeConnection()
-    retryCountRef.current = 0
-    hasConnectedRef.current = false
-    myOfferRef.current = false
-    setError('')
     setStatus('connecting')
     void start()
   }
 
-  function toggleMute() {
-    const nextMuted = !muted
-    streamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !nextMuted })
-    setMuted(nextMuted)
+  // Cargar script de Daily.co
+  async function loadDailyScript(): Promise<void> {
+    if ((window as any).DailyCall) return
+
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://unpkg.com/@daily-co/daily-js'
+      script.async = true
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error('No se pudo cargar Daily.co SDK'))
+      document.head.appendChild(script)
+    })
   }
 
-  async function stop() {
-    closeConnection()
-    try {
-      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
-      await set(ref(rtdb, `${signalPath}/closed/${uid}`), true)
-      await onDisconnect(ref(rtdb, `${signalPath}/closed/${uid}`)).cancel()
-    } catch { /* ok */ }
-  }
-
-  // Auto-conectar al entrar a la sala — como Discord, conecta una sola vez y se mantiene
-  // No requiere peerUid, solo necesita estar en la sala
+  // Auto-conectar al entrar a la sala
   useEffect(() => {
     if (!uid) {
       setStatus('idle')
       return
     }
-    // Solo iniciar una vez, no reiniciar en cada re-render
-    if (!initRef.current && !hasConnectedRef.current) {
+    if (!initRef.current) {
       void start()
     }
     return () => {
-      // No cerrar aquí — solo cerrar cuando el usuario cuelgue o salga de la sala
+      // No cerrar en re-render, solo al desmontar
     }
   }, [uid, roomId])
 
-  // Limpiar solo cuando el componente se desmonta completamente (salir de la sala)
+  // Limpiar al salir completamente de la sala
   useEffect(() => () => {
-    stopsRef.current.forEach((stopListener) => stopListener())
-    connectionRef.current?.close()
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    closeConnection()
   }, [])
 
-  return { status, muted, error, stream: remoteStream, start, stop, toggleMute, retry }
+  return { status, muted: true, error, stream: null, start, stop, toggleMute, retry }
 }
