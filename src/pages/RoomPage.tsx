@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
+import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, Film, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
 import { onValue, ref } from 'firebase/database'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/AppShell'
@@ -10,8 +10,8 @@ import { readableError } from '../lib/errors'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
 import { useSynchronizedMedia } from '../hooks/useSynchronizedMedia'
 import { useRoomVoice } from '../hooks/useRoomVoice'
-import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState, updateRoomVideo } from '../services/appService'
-import type { ChatMessage, Room, RoomState, UserProfile } from '../types'
+import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState, subscribeVideos, updateRoomVideo } from '../services/appService'
+import type { ChatMessage, Room, RoomState, UserProfile, VideoItem } from '../types'
 import { mediaEmbedUrl } from '../lib/media'
 
 const reactions = ['❤️', '😂', '😮', '👏', '🍿']
@@ -26,7 +26,12 @@ export default function RoomPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [friends, setFriends] = useState<UserProfile[]>([])
   const [message, setMessage] = useState('')
-  const [chatOpen, setChatOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 850
+    }
+    return false
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -71,6 +76,8 @@ function RoomExperience(props: {
   room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; onExit: () => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
 }) {
   const { room, uid, username, avatar, state, messages, friends, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
+  const partnerUid = room.memberUids.find((member) => member !== uid)
+  const voice = useRoomVoice(room.id, uid, partnerUid || '')
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
   const messageEndRef = useRef<HTMLDivElement>(null)
@@ -92,11 +99,16 @@ function RoomExperience(props: {
   })
   const mediaPlayer = useSynchronizedMedia({ roomId: room.id, uid, mediaUrl: activeMediaUrl, enabled: activeProvider === 'direct', onVideoEnded: advanceVideo })
   const player = activeProvider === 'direct' ? mediaPlayer : youtubePlayer
-  const partnerUid = room.memberUids.find((member) => member !== uid)
   const partner = friends.find((friend) => friend.uid === partnerUid)
-  const voice = useRoomVoice(room.id, uid, partnerUid || '')
   const pendingInviteUid = room.invitedUids.find((invitee) => invitee !== uid)
   const inviteOptions = friends.filter((friend) => friend.uid !== partnerUid)
+  const [listVideos, setListVideos] = useState<VideoItem[]>([])
+  const [changeVideoOpen, setChangeVideoOpen] = useState(false)
+
+  useEffect(() => {
+    if (!room.watchlistId) { setListVideos([]); return }
+    return subscribeVideos(room.watchlistId, setListVideos)
+  }, [room.watchlistId])
 
   useEffect(() => { messageEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   useEffect(() => {
@@ -145,21 +157,19 @@ function RoomExperience(props: {
   }
 
   async function changeVideo() {
-    const url = prompt('Introduce la URL de YouTube (ej: https://www.youtube.com/watch?v=L2_S8GvIasM)')
-    if (!url) return
-    const videoId = new URL(url).searchParams.get('v')
-    if (!videoId) {
-      setPlayError('URL de YouTube no válida')
-      return
-    }
+    setChangeVideoOpen(true)
+  }
+
+  async function selectListVideo(video: VideoItem) {
+    setChangeVideoOpen(false)
     setBusy(true)
     try {
       await updateRoomVideo(room.id, uid, {
-        videoId,
-        mediaUrl: `https://www.youtube.com/watch?v=${videoId}`,
-        provider: 'youtube',
-        title: 'Video cargado rápidamente',
-        thumbnail: '',
+        videoId: video.videoId,
+        mediaUrl: video.mediaUrl || `https://www.youtube.com/watch?v=${video.videoId}`,
+        provider: video.provider || 'youtube',
+        title: video.title,
+        thumbnail: video.thumbnail || '',
       })
       setPlayError('')
     } catch (cause) { setPlayError(readableError(cause)) }
@@ -182,7 +192,7 @@ function RoomExperience(props: {
         <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next">{currentQueue[0].thumbnail && <img src={currentQueue[0].thumbnail} alt="" />}<span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>
       </section>
       <aside className={`chat-panel ${chatOpen ? 'chat-open' : ''}`}><div className="chat-header"><div><span className="section-kicker">COMENTARIOS EN VIVO</span><h2><MessageCircle size={17} /> Sala de chat</h2></div><span className="chat-online"><span className="live-dot" /> {partner ? '2 aquí' : '1 aquí'}</span><button className="chat-collapse" onClick={() => setChatOpen(!chatOpen)} aria-label={chatOpen ? 'Cerrar chat' : 'Abrir chat'}><MessageCircle size={17} /></button></div>
-        <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada' : voice.status === 'connecting' ? 'Conectando…' : voice.status === 'waiting' ? 'Esperando conexión' : 'Chat de voz')}</div><button className="voice-action" onClick={() => voice.active ? voice.toggleMute() : void voice.start()} disabled={ended || !partnerUid || voice.status === 'connecting'} title={voice.active ? voice.muted ? 'Activar micrófono' : 'Silenciar micrófono' : 'Iniciar chat de voz'}>{voice.active && voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.active ? voice.muted ? 'Activar' : 'Silenciar' : 'Hablar'}</button>{voice.active && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>
+        <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada' : voice.status === 'connecting' ? 'Conectando…' : voice.status === 'waiting' ? 'Esperando conexión (reintentando automáticamente…)': 'Chat de voz')}</div><button className="voice-action" onClick={() => voice.active ? voice.toggleMute() : void voice.start()} disabled={ended || !partnerUid || voice.status === 'connecting'} title={voice.active ? voice.muted ? 'Activar micrófono' : 'Silenciar micrófono' : 'Iniciar chat de voz'}>{voice.active && voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.active ? voice.muted ? 'Activar' : 'Silenciar' : 'Hablar'}</button>{(voice.status === 'error' || voice.status === 'waiting') && !voice.active && <button className="voice-action" onClick={() => void voice.retry()} title="Reintentar conexión de voz"><Mic size={15} /> Reintentar</button>}{voice.active && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>
         <div className="chat-messages">{messages.length ? messages.map((item) => <ChatBubble message={item} mine={item.uid === uid} key={item.id} />) : <div className="chat-empty"><div className="chat-empty-icon"><MessageCircle size={19} /></div><strong>La sala está en silencio</strong><small>Di hola o manda una reacción.</small></div>}<div ref={messageEndRef} /></div>
         <div className="reaction-row">{reactions.map((emoji) => <button key={emoji} onClick={() => void sendText('reaction', emoji)} aria-label={`Enviar reacción ${emoji}`}>{emoji}</button>)}</div>
         <form className="chat-compose" onSubmit={(event) => void send(event)}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe algo..." maxLength={500} disabled={ended} /><button aria-label="Enviar mensaje" disabled={!message.trim() || ended}><Send size={16} /></button></form>
@@ -190,6 +200,36 @@ function RoomExperience(props: {
     </div>
     <div className="room-bottom-actions"><label className="invite-friend"><Users size={15} /><span>Invitar a un amigo</span><select onChange={(event) => void invite(event)} disabled={busy || room.memberUids.length + room.invitedUids.length >= 2} defaultValue=""><option value="">Elegir amigo…</option>{inviteOptions.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}</select></label><button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button></div>
     <button className="chat-mobile-toggle" onClick={() => setChatOpen(!chatOpen)}><MessageCircle size={17} /> {chatOpen ? 'Ocultar chat' : `Abrir chat · ${messages.length}`}</button>
+    {changeVideoOpen && (
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangeVideoOpen(false) }}>
+        <form className="modal-card" onSubmit={(event) => { event.preventDefault() }}>
+          <button type="button" className="modal-close" onClick={() => setChangeVideoOpen(false)}>×</button>
+          <span className="section-kicker">CAMBIAR VIDEO</span>
+          <h2>Elige de tu lista</h2>
+          {listVideos.length === 0 ? (
+            <div className="empty-inline" style={{ justifyContent: 'center', textAlign: 'center', padding: '20px 0' }}>
+              <div><strong>No hay videos en la lista</strong><small>Añade videos desde "Mi lista" para cambiarlos aquí.</small></div>
+            </div>
+          ) : (
+            <div className="video-list" style={{ maxHeight: '400px', overflowY: 'auto', borderTop: '1px solid var(--line)' }}>
+              {listVideos.map((video) => (
+                <article key={video.id} className="video-item" style={{ padding: '8px 3px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }} onClick={() => void selectListVideo(video)}>
+                  <div className="video-thumb" style={{ width: '70px', height: '42px', flexShrink: 0 }}>
+                    {video.thumbnail ? <img src={video.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '3px' }} /> : <span className="video-thumb-placeholder"><Film size={15} /></span>}
+                  </div>
+                  <div className="video-info" style={{ flex: 1, minWidth: 0 }}>
+                    <strong className="video-title-clamp" style={{ fontSize: '10px', lineHeight: '1.3' }}>{video.title}</strong>
+                    <small style={{ fontSize: '8px' }}>{video.provider === 'youtube' ? 'YouTube' : video.provider || 'Video'}</small>
+                  </div>
+                  <button className="watch-button" style={{ marginLeft: 'auto', padding: '4px 8px', fontSize: '9px' }} onClick={(event) => { event.stopPropagation(); void selectListVideo(video) }}>Seleccionar</button>
+                </article>
+              ))}
+            </div>
+          )}
+          <button type="button" className="primary-button" style={{ width: '100%', marginTop: '10px' }} onClick={() => setChangeVideoOpen(false)}>Cerrar</button>
+        </form>
+      </div>
+    )}
   </div>
 }
 

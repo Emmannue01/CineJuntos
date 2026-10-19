@@ -16,12 +16,18 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const remoteDescriptionReadyRef = useRef(false)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
   const initRef = useRef(false)
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryCountRef = useRef(0)
 
   // Calcular quién inicia la señalización (el UID menor alfabéticamente)
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
 
   function closeConnection() {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
     stopsRef.current.forEach((stop) => stop())
     stopsRef.current = []
     connectionRef.current?.close()
@@ -35,6 +41,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     setMuted(false)
     setStatus('idle')
     initRef.current = false
+    retryCountRef.current = 0
   }
 
   async function cleanupSignalization() {
@@ -52,6 +59,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     initRef.current = true
     setError('')
     setStatus('connecting')
+    retryCountRef.current = 0
     try {
       // Limpiar señalización antigua por si queda basura de una sesión previa
       await cleanupSignalization()
@@ -71,9 +79,12 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       setActive(true)
       connection.ontrack = (event) => setRemoteStream(event.streams[0] || null)
       connection.onconnectionstatechange = () => {
-        if (connection.connectionState === 'connected') setStatus('connected')
-        else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
+        if (connection.connectionState === 'connected') {
+          setStatus('connected')
+          if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
+        } else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
           setStatus('waiting')
+          scheduleRetry()
         }
       }
       connection.onicecandidate = (event) => {
@@ -122,12 +133,35 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
         }))
       }
       setStatus('waiting')
+      scheduleRetry()
     } catch (cause) {
       closeConnection()
       const errorName = cause instanceof DOMException ? cause.name : ''
       setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : 'No se pudo iniciar el chat de voz. Comprueba el micrófono y vuelve a intentarlo.')
       setStatus('error')
     }
+  }
+
+  function scheduleRetry() {
+    if (retryTimeoutRef.current) return
+    if (retryCountRef.current >= 3) return
+    retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null
+      retryCountRef.current += 1
+      if (status === 'waiting' || status === 'error') {
+        closeConnection()
+        void start()
+      }
+    }, 8000)
+  }
+
+  async function retry() {
+    if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
+    closeConnection()
+    retryCountRef.current = 0
+    setError('')
+    setStatus('connecting')
+    void start()
   }
 
   function toggleMute() {
@@ -162,5 +196,5 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     streamRef.current?.getTracks().forEach((track) => track.stop())
   }, [])
 
-  return { status, muted, error, stream: remoteStream, active, start, stop, toggleMute }
+  return { status, muted, error, stream: remoteStream, active, start, stop, toggleMute, retry }
 }
