@@ -213,7 +213,7 @@ function RoomExperience(props: {
             </button>
           )}
           <div className="voice-hint" style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
-            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? 'Cualquier persona puede unirse a esta sala de voz' : voice.status === 'error' ? 'Haz clic en el micrófono para iniciar' : ''}
+            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? '' : voice.status === 'error' ? 'Haz clic en el micrófono para iniciar' : ''}
           </div>
           <audio ref={remoteAudioRef} autoPlay />
         </div>
