@@ -195,9 +195,9 @@ function RoomExperience(props: {
         <div className="voice-controls">
           <div className={`voice-status voice-${voice.status}`}>
             <span className="live-dot" />
-            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando automáticamente…)': 'Chat de voz'}
+            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (esperando a otro dispositivo…)': 'Chat de voz'}
           </div>
-          {partnerUid && voice.status === 'connected' && (
+          {voice.status === 'connected' && (
             <div className="voice-actions">
               <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>
                 {voice.muted ? <MicOff size={16} /> : <Mic size={16} />}
@@ -209,12 +209,15 @@ function RoomExperience(props: {
               </button>
             </div>
           )}
-          {partnerUid && voice.status === 'error' && (
+          {(voice.status === 'error' || voice.status === 'waiting') && (
             <button className="voice-action" onClick={() => voice.retry()} title="Reintentar conexión de voz">
               <Mic size={16} />
               <span>Reintentar</span>
             </button>
           )}
+          <div className="voice-hint" style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
+            {voice.status === 'waiting' ? 'Esperando a que otro dispositivo se una a la sala de voz…' : ''}
+          </div>
           <audio ref={remoteAudioRef} autoPlay />
         </div>
         <div className="chat-messages">{messages.length ? messages.map((item) => <ChatBubble message={item} mine={item.uid === uid} key={item.id} />) : <div className="chat-empty"><div className="chat-empty-icon"><MessageCircle size={19} /></div><strong>La sala está en silencio</strong><small>Di hola o manda una reacción.</small></div>}<div ref={messageEndRef} /></div>
