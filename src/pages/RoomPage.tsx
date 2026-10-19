@@ -26,12 +26,6 @@ export default function RoomPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [friends, setFriends] = useState<UserProfile[]>([])
   const [message, setMessage] = useState('')
-  const [chatOpen, setChatOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth <= 850
-    }
-    return false
-  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -59,13 +53,13 @@ export default function RoomPage() {
 
   if (!joined) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>{error || 'Preparando la sala…'}</span>{error && <button className="small-outline-button" onClick={() => navigate('/')}>Volver al inicio</button>}</div>
   if (!room || !user) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>Cargando la función…</span></div>
-  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} error={error} setError={setError} busy={busy} setBusy={setBusy} chatOpen={chatOpen} setChatOpen={setChatOpen} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
+  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} error={error} setError={setError} busy={busy} setBusy={setBusy} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
 }
 
 function RoomExperience(props: {
-  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
+  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; busy: boolean; setBusy: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
 }) {
-  const { room, uid, username, avatar, state, messages, friends, error, setError, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
+  const { room, uid, username, avatar, state, messages, friends, error, setError, busy, setBusy, message, setMessage, copied, setCopied } = props
   const partnerUidRef = useRef<string | null>(null)
   const partnerUidCalculated = room.memberUids.find((member) => member !== uid) || null
   if (partnerUidCalculated && partnerUidCalculated !== partnerUidRef.current) {
@@ -202,8 +196,8 @@ function RoomExperience(props: {
         <div className="player-underbar"><span><span className={partner ? 'live-dot' : 'live-dot offline'} /> {partner ? `${partner.displayName} ${partnerOnlineLabel(partner.uid)}` : pendingInviteUid ? 'Esperando confirmación' : 'Comparte el enlace para invitar'}</span>{activeProvider === 'embed' ? <span><ExternalLink size={14} /><a href={activeMediaUrl} target="_blank" rel="noreferrer">Abrir contenido en su sitio</a><small>No todos los reproductores permiten sincronización.</small></span> : <span><Volume2 size={14} /> Desfase corregido automáticamente</span>}</div>
         <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next">{currentQueue[0].thumbnail && <img src={currentQueue[0].thumbnail} alt="" />}<span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>
       </section>
-      <aside className={`chat-panel ${chatOpen ? 'chat-open' : ''}`}><div className="chat-header"><div><span className="section-kicker">COMENTARIOS EN VIVO</span><h2><MessageCircle size={17} /> Sala de chat</h2></div><span className="chat-online"><span className="live-dot" /> {partner ? '2 aquí' : '1 aquí'}</span><button className="chat-collapse" onClick={() => setChatOpen(!chatOpen)} aria-label={chatOpen ? 'Cerrar chat' : 'Abrir chat'}><MessageCircle size={17} /></button></div>
-        <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando…)': 'Chat de voz')}</div>{voice.active && <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>{voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}</button>}{voice.active && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>
+      <aside className={`chat-panel chat-open`}><div className="chat-header"><div><span className="section-kicker">COMENTARIOS EN VIVO</span><h2><MessageCircle size={17} /> Sala de chat</h2></div><span className="chat-online"><span className="live-dot" /> {partner ? '2 aquí' : '1 aquí'}</span></div>
+        <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando…)': 'Chat de voz')}</div>{partnerUid && <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>{voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}</button>}{partnerUid && voice.status === 'connected' && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>
         <div className="chat-messages">{messages.length ? messages.map((item) => <ChatBubble message={item} mine={item.uid === uid} key={item.id} />) : <div className="chat-empty"><div className="chat-empty-icon"><MessageCircle size={19} /></div><strong>La sala está en silencio</strong><small>Di hola o manda una reacción.</small></div>}<div ref={messageEndRef} /></div>
         <div className="reaction-row">{reactions.map((emoji) => <button key={emoji} onClick={() => void sendText('reaction', emoji)} aria-label={`Enviar reacción ${emoji}`}>{emoji}</button>)}</div>
         <form className="chat-compose" onSubmit={(event) => void send(event)}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe algo..." maxLength={500} disabled={ended} /><button aria-label="Enviar mensaje" disabled={!message.trim() || ended}><Send size={16} /></button></form>

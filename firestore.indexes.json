@@ -31,6 +31,14 @@
       "fields": [
         { "fieldPath": "position", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "watchlists",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "isPublic", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

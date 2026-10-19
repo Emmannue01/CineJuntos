@@ -6,8 +6,7 @@ type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'waiting' | 'error'
 
 export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [muted, setMuted] = useState(true) // Siempre iniciar en mute
-  const [active, setActive] = useState(false)
+  const [muted, setMuted] = useState(true)
   const [error, setError] = useState('')
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const connectionRef = useRef<RTCPeerConnection | null>(null)
@@ -19,7 +18,6 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCountRef = useRef(0)
 
-  // Calcular quién inicia la señalización (el UID menor alfabéticamente)
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
 
@@ -32,26 +30,15 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     stopsRef.current = []
     connectionRef.current?.close()
     connectionRef.current = null
-    setActive(false)
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     remoteDescriptionReadyRef.current = false
     pendingCandidatesRef.current = []
     setRemoteStream(null)
-    setMuted(true) // Volver a mute al cerrar
+    setMuted(true)
     setStatus('idle')
     initRef.current = false
     retryCountRef.current = 0
-  }
-
-  async function cleanupSignalization() {
-    try {
-      await remove(ref(rtdb, `${signalPath}/offer`))
-      await remove(ref(rtdb, `${signalPath}/answer`))
-      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
-      await remove(ref(rtdb, `${signalPath}/candidates/${peerUid}`))
-      await remove(ref(rtdb, `${signalPath}/closed/${uid}`))
-    } catch { /* ignorar errores de limpieza */ }
   }
 
   async function start() {
@@ -60,14 +47,13 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     setError('')
     setStatus('connecting')
     retryCountRef.current = 0
+
     try {
-      // Limpiar señalización antigua
       await cleanupSignalization()
 
-      // Pedir micrófono pero empezar SIN audio (mute)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      // Silenciar el micrófono local inmediatamente
+      // Empezar SIEMPRE en mute (como Discord)
       stream.getAudioTracks().forEach((track) => { track.enabled = false })
 
       const connection = new RTCPeerConnection({
@@ -78,10 +64,10 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
         ],
-        iceCandidatePoolSize: 10, // Precandidatos ICE para conexiÃ³n mÃ¡s rÃ¡pida
+        iceCandidatePoolSize: 10,
       })
       connectionRef.current = connection
-      setActive(true)
+
       connection.ontrack = (event) => setRemoteStream(event.streams[0] || null)
       connection.onconnectionstatechange = () => {
         if (connection.connectionState === 'connected') {
@@ -105,6 +91,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       stopsRef.current.push(onValue(peerClosedRef, (snapshot) => {
         if (snapshot.val() === true) closeConnection()
       }))
+
       const addCandidate = async (snapshot: DataSnapshot) => {
         const candidate = snapshot.val() as RTCIceCandidateInit | null
         if (!candidate) return
@@ -142,9 +129,19 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     } catch (cause) {
       closeConnection()
       const errorName = cause instanceof DOMException ? cause.name : ''
-      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : 'No se pudo iniciar el chat de voz.')
+      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : '')
       setStatus('error')
     }
+  }
+
+  async function cleanupSignalization() {
+    try {
+      await remove(ref(rtdb, `${signalPath}/offer`))
+      await remove(ref(rtdb, `${signalPath}/answer`))
+      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
+      await remove(ref(rtdb, `${signalPath}/candidates/${peerUid}`))
+      await remove(ref(rtdb, `${signalPath}/closed/${uid}`))
+    } catch { /* ignorar */ }
   }
 
   function scheduleRetry() {
@@ -181,15 +178,13 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
       await set(ref(rtdb, `${signalPath}/closed/${uid}`), true)
       await onDisconnect(ref(rtdb, `${signalPath}/closed/${uid}`)).cancel()
-    } catch { /* The local microphone is already stopped. */ }
+    } catch { /* ok */ }
   }
 
-  // Auto-conectar al entrar a la sala (cuando hay peerUid válido)
+  // Auto-conectar al entrar a la sala — como Discord, sin botón de conectar
   useEffect(() => {
     if (!peerUid) {
-      // No hay compañero aún, mantener idle
       setStatus('idle')
-      setActive(false)
       return
     }
     initRef.current = false
@@ -206,5 +201,5 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     streamRef.current?.getTracks().forEach((track) => track.stop())
   }, [])
 
-  return { status, muted, error, stream: remoteStream, active, start, stop, toggleMute, retry }
+  return { status, muted, error, stream: remoteStream, start, stop, toggleMute, retry }
 }
