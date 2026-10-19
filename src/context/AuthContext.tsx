@@ -190,12 +190,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     loginWithGoogle: async () => {
       const authSdk = authSdkRef.current || await loadAuth()
-      const { auth, googleProvider, signInWithRedirect } = authSdk
+      const { auth, googleProvider, signInWithPopup } = authSdk
       setAuthError('')
 
-      // Usar signInWithRedirect en toda la app (móvil y escritorio)
-      await signInWithRedirect(auth, googleProvider)
-      return 'redirect' as const
+      // Usar signInWithPopup en toda la app (móvil y escritorio)
+      const credential = await signInWithPopup(auth, googleProvider)
+      setUser(credential.user)
+      setLoading(false)
+      setAuthError('')
+      try {
+        const currentProfile = await ensureProfile(credential.user)
+        setProfile(currentProfile)
+      } catch (error) {
+        console.error('No se pudo asegurar el perfil tras login con Google', error)
+      }
+      return 'popup' as const
     },
     logout: async () => {
       const { auth, signOut } = await loadAuth()
