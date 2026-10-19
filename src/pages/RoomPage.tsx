@@ -61,7 +61,7 @@ function RoomExperience(props: {
 }) {
   const { room, uid, username, avatar, state, messages, friends, error, setError, busy, setBusy, message, setMessage, copied, setCopied } = props
   const partnerUid = room.memberUids.find((member) => member !== uid) || ''
-  const voice = useRoomVoice(room.id, uid)
+  const voice = useRoomVoice(room.id, uid, partnerUid)
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
   const messageEndRef = useRef<HTMLDivElement>(null)
