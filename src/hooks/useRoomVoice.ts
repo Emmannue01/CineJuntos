@@ -6,7 +6,7 @@ type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'waiting' | 'error'
 
 export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [muted, setMuted] = useState(false)
+  const [muted, setMuted] = useState(true) // Siempre iniciar en mute
   const [active, setActive] = useState(false)
   const [error, setError] = useState('')
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -38,7 +38,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     remoteDescriptionReadyRef.current = false
     pendingCandidatesRef.current = []
     setRemoteStream(null)
-    setMuted(false)
+    setMuted(true) // Volver a mute al cerrar
     setStatus('idle')
     initRef.current = false
     retryCountRef.current = 0
@@ -61,11 +61,15 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     setStatus('connecting')
     retryCountRef.current = 0
     try {
-      // Limpiar señalización antigua por si queda basura de una sesión previa
+      // Limpiar señalización antigua
       await cleanupSignalization()
 
+      // Pedir micrófono pero empezar SIN audio (mute)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
+      // Silenciar el micrófono local inmediatamente
+      stream.getAudioTracks().forEach((track) => { track.enabled = false })
+
       const connection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -74,6 +78,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
         ],
+        iceCandidatePoolSize: 10, // Precandidatos ICE para conexiÃ³n mÃ¡s rÃ¡pida
       })
       connectionRef.current = connection
       setActive(true)
@@ -137,14 +142,14 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     } catch (cause) {
       closeConnection()
       const errorName = cause instanceof DOMException ? cause.name : ''
-      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : 'No se pudo iniciar el chat de voz. Comprueba el micrófono y vuelve a intentarlo.')
+      setError(errorName === 'NotAllowedError' ? 'Permite el acceso al micrófono para hablar.' : 'No se pudo iniciar el chat de voz.')
       setStatus('error')
     }
   }
 
   function scheduleRetry() {
     if (retryTimeoutRef.current) return
-    if (retryCountRef.current >= 3) return
+    if (retryCountRef.current >= 5) return
     retryTimeoutRef.current = setTimeout(() => {
       retryTimeoutRef.current = null
       retryCountRef.current += 1
@@ -152,7 +157,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
         closeConnection()
         void start()
       }
-    }, 8000)
+    }, 5000)
   }
 
   async function retry() {
@@ -179,7 +184,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     } catch { /* The local microphone is already stopped. */ }
   }
 
-  // Reiniciar cuando cambie el compañero de sala
+  // Auto-conectar al entrar a la sala (cuando hay peerUid)
   useEffect(() => {
     if (!peerUid) return
     initRef.current = false
