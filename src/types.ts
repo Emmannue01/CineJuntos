@@ -85,6 +85,7 @@ export interface RoomInvite {
   fromUid: string
   toUid: string
   fromName: string
+  fromAvatar: string
   roomTitle: string
   createdAt: number
   status: 'pending' | 'accepted' | 'declined'

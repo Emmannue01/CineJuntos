@@ -42,8 +42,38 @@ export function subscribeRequests(uid: string, callback: (requests: FriendReques
 export async function searchUsers(term: string, currentUid: string) {
   const normalized = term.trim().toLowerCase().replace(/^@/, '')
   if (normalized.length < 2) return []
-  const snapshot = await getDocs(query(collection(db, 'users'), where('usernameLower', '>=', normalized), where('usernameLower', '<=', `${normalized}\uf8ff`), limit(12)))
-  return snapshot.docs.map((item) => item.data() as UserProfile).filter((profile) => profile.uid !== currentUid)
+  
+  // Buscar por usernameLower (para coincidencia exacta de nombre de usuario)
+  const usernameSnapshot = await getDocs(
+    query(
+      collection(db, 'users'),
+      where('usernameLower', '>=', normalized),
+      where('usernameLower', '<=', `${normalized}\uf8ff`),
+      limit(12)
+    )
+  )
+  
+  const results = usernameSnapshot.docs.map((item) => item.data() as UserProfile).filter((profile) => profile.uid !== currentUid)
+  
+  // Si no hay resultados por username, buscar también por displayName
+  if (results.length === 0) {
+    const displayNameSnapshot = await getDocs(
+      query(
+        collection(db, 'users'),
+        where('usernameLower', '>=', normalized.charAt(0)),
+        where('usernameLower', '<=', `${normalized.charAt(0)}\uf8ff`),
+        limit(24)
+      )
+    )
+    const displayNameResults = displayNameSnapshot.docs
+      .map((item) => item.data() as UserProfile)
+      .filter((profile) => profile.uid !== currentUid)
+      .filter((profile) => profile.displayName?.toLowerCase().includes(normalized))
+    
+    return displayNameResults.slice(0, 12)
+  }
+  
+  return results
 }
 
 export async function sendFriendRequest(fromUid: string, toUid: string) {
@@ -115,6 +145,21 @@ export function subscribePublicWatchlists(uid: string, callback: (lists: Watchli
 
 export async function toggleWatchlistPublic(listId: string, isPublic: boolean) {
   return updateDoc(doc(db, 'watchlists', listId), { isPublic })
+}
+
+export async function updateWatchlistName(listId: string, name: string) {
+  return updateDoc(doc(db, 'watchlists', listId), { name: name.trim() || 'Mi lista' })
+}
+
+export async function deleteWatchlist(listId: string) {
+  // Primero eliminar todos los videos de la lista
+  const videosRef = collection(db, 'watchlists', listId, 'videos')
+  const videosSnapshot = await getDocs(videosRef)
+  const batch = writeBatch(db)
+  videosSnapshot.docs.forEach(doc => batch.delete(doc.ref))
+  // Luego eliminar la lista
+  batch.delete(doc(db, 'watchlists', listId))
+  return batch.commit()
 }
 
 export function subscribeVideos(listId: string, callback: (videos: VideoItem[]) => void) {

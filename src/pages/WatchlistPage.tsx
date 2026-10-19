@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 import { extractYouTubeId, getYouTubeMetadata, getTrendingVideos, searchYouTubeVideos, type YouTubeVideo } from '../lib/youtube'
 import { parseMediaLink } from '../lib/media'
-import { addVideo, createRoom, createWatchlist, deleteVideo, reorderVideos, subscribeFriends, subscribeVideos, subscribeWatchlists, toggleWatchlistPublic, updateVideo } from '../services/appService'
+import { addVideo, createRoom, createWatchlist, deleteVideo, deleteWatchlist, reorderVideos, subscribeFriends, subscribeVideos, subscribeWatchlists, toggleWatchlistPublic, updateVideo, updateWatchlistName } from '../services/appService'
 import type { UserProfile, VideoItem, Watchlist } from '../types'
 
 export default function WatchlistPage() {
@@ -26,6 +26,9 @@ export default function WatchlistPage() {
   const [newListFriend, setNewListFriend] = useState('')
   const [newListMode, setNewListMode] = useState<'personal' | 'shared'>('personal')
   const [isListPublic, setIsListPublic] = useState(false)
+const [editingListName, setEditingListName] = useState(false)
+const [editListNameValue, setEditListNameValue] = useState('')
+const [deletingListId, setDeletingListId] = useState<string | null>(null)
 
   // YouTube feed state
   const [searchTerm, setSearchTerm] = useState('')
@@ -170,6 +173,29 @@ export default function WatchlistPage() {
       await toggleWatchlistPublic(selectedId, !isListPublic)
       setIsListPublic(!isListPublic)
       setNotice(`Lista ${isListPublic ? 'privada' : 'pública'} — ahora ${isListPublic ? 'solo tú' : 'cualquiera'} puede verla.`)
+    } catch (cause) { setError(readableError(cause)) }
+    finally { setBusy('') }
+  }
+
+  async function editListName() {
+    if (!selectedId || !editListNameValue.trim()) return
+    setBusy('edit-name')
+    try {
+      await updateWatchlistName(selectedId, editListNameValue)
+      setEditingListName(false)
+      setEditListNameValue('')
+      setNotice('Nombre de lista actualizado.')
+    } catch (cause) { setError(readableError(cause)) }
+    finally { setBusy('') }
+  }
+
+  async function deleteList(listId: string) {
+    if (!window.confirm('¿Eliminar esta lista y todos sus videos?')) return
+    setBusy('delete-list')
+    try {
+      await deleteWatchlist(listId)
+      setNotice('Lista eliminada.')
+      if (selectedId === listId) setSelectedId('')
     } catch (cause) { setError(readableError(cause)) }
     finally { setBusy('') }
   }
@@ -334,11 +360,25 @@ export default function WatchlistPage() {
     )}
 
     {showNewList && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowNewList(false) }}><form className="modal-card" onSubmit={newList}><button type="button" className="modal-close" onClick={() => setShowNewList(false)}>×</button><span className="section-kicker">UNA LISTA NUEVA</span><h2>¿Qué guardamos?</h2><label>Nombre<input value={newListName} onChange={(event) => setNewListName(event.target.value)} placeholder="Nuestras pelis" maxLength={40} /></label><div className="list-mode-picker"><button type="button" className={newListMode === 'personal' ? 'selected' : ''} onClick={() => setNewListMode('personal')}><Bookmark size={15} /> Personal</button><button type="button" className={newListMode === 'shared' ? 'selected' : ''} onClick={() => setNewListMode('shared')}><Users size={15} /> Conjunta</button></div>{newListMode === 'shared' && <label>Compartir con<select value={newListFriend} onChange={(event) => setNewListFriend(event.target.value)} required><option value="">Elige un amigo</option>{friends.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName} · @{friend.username}</option>)}</select></label>}<button className="primary-button" disabled={busy === 'list' || (newListMode === 'shared' && friends.length === 0)}>Crear lista <ArrowUp size={15} /></button>{newListMode === 'shared' && friends.length === 0 && <small>Agrega un amigo antes de crear una lista conjunta.</small>}</form></div>}
-    {lists.length === 0 ? <div className="first-list"><div className="first-list-icon"><Clapperboard size={25} /></div><h2>Todavía no hay lista.</h2><p>Crea una lista personal o compártela con alguien para empezar.</p><button className="primary-button" onClick={() => setShowNewList(true)}><Plus size={17} /> Crear mi primera lista</button></div> : <div className="watchlist-content"><div className="list-meta-row"><div><span className="section-kicker">{selected?.shared ? 'A DOS VOCES' : 'TU COLECCIÓN'}</span><h2><>{selected?.name || 'Mi lista'} <span className="count-badge">{pending.length}</span></></h2><button className="public-toggle" onClick={() => void togglePublic()} title={isListPublic ? 'Hacer lista privada' : 'Hacer lista pública'}>{isListPublic ? (<><Globe size={14} /> Público</>) : (<><Lock size={14} /> Privado</>)}</button></div><div className="list-stats"><span><Clock3 size={14} /> {pending.length} por ver</span><span><Check size={14} /> {watched.length} vistos</span></div></div>
+    {lists.length === 0 ? <div className="first-list"><div className="first-list-icon"><Clapperboard size={25} /></div><h2>Todavía no hay lista.</h2><p>Crea una lista personal o compártela con alguien para empezar.</p><button className="primary-button" onClick={() => setShowNewList(true)}><Plus size={17} /> Crear mi primera lista</button></div> : <div className="watchlist-content"><div className="list-meta-row"><div><span className="section-kicker">{selected?.shared ? 'A DOS VOCES' : 'TU COLECCIÓN'}</span><h2><>{selected?.name || 'Mi lista'} <span className="count-badge">{pending.length}</span></></h2><div className="list-actions"><button className="public-toggle" onClick={() => void togglePublic()} title={isListPublic ? 'Hacer lista privada' : 'Hacer lista pública'}>{isListPublic ? (<><Globe size={14} /> Público</>) : (<><Lock size={14} /> Privado</>)}</button>{editingListName ? <><input className="edit-list-input" value={editListNameValue} onChange={(event) => setEditListNameValue(event.target.value)} autoFocus /><button className="primary-button" onClick={editListName}>Guardar</button><button className="text-link" onClick={() => { setEditingListName(false); setEditListNameValue(selected?.name || '') }}>Cancelar</button></> : <button className="text-link" onClick={() => { setEditListNameValue(selected?.name || ''); setEditingListName(true) }}><Bookmark size={14} /> Editar nombre</button>}<button className="text-link delete-list" onClick={() => setDeletingListId(selectedId)} title="Eliminar lista"><Trash2 size={14} /></button></div></div><div className="list-stats"><span><Clock3 size={14} /> {pending.length} por ver</span><span><Check size={14} /> {watched.length} vistos</span></div></div>
       {pending.length ? <div className="video-list">{pending.map((video, index) => <article className="video-item" key={video.id}><span className="video-index">{String(index + 1).padStart(2, '0')}</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}{(video.provider || 'youtube') === 'youtube' && <span className="thumb-play"><Play size={15} fill="currentColor" /></span>}</div><div className="video-info"><strong>{video.title}</strong><small>{selected?.shared ? <><Users size={12} /> Lista conjunta</> : 'Añadido a la lista'} · {mediaLabel(video.provider)}</small></div><div className="video-actions"><button className="icon-button watch-button" title="Ver juntos" disabled={busy === video.id} onClick={() => void launch(video)}>{busy === video.id ? <LoaderCircle size={16} className="spin" /> : <Play size={16} fill="currentColor" />}</button><div className="reorder-actions"><button className="bare-icon" title="Subir" disabled={index === 0 || busy === 'reorder'} onClick={() => void move(index, -1)}><ArrowUp size={14} /></button><button className="bare-icon" title="Bajar" disabled={index === pending.length - 1 || busy === 'reorder'} onClick={() => void move(index, 1)}><ArrowDown size={14} /></button></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar como visto" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'watched' })}><Check size={15} /></button></div></article>)}</div> : <div className="empty-inline list-empty"><span className="empty-icon"><Film size={17} /></span><div><strong>No hay videos pendientes</strong><small>Añade un enlace multimedia para tu siguiente función.</small></div></div>}
       {watched.length > 0 && <details className="watched-details"><summary><Check size={15} /> Ya vimos ({watched.length})</summary><div className="video-list watched-list">{watched.map((video) => <article className="video-item" key={video.id}><span className="video-index">✓</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}</div><div className="video-info"><strong>{video.title}</strong><small>Vista juntos · {mediaLabel(video.provider)}</small></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar pendiente" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'pending' })}><Clock3 size={15} /></button></article>)}</div></details>}
     </div>}
     {friends.length > 0 && <div className="invite-choice"><Share2 size={15} /><span>Invitar a una función:</span><select value={shareWith} onChange={(event) => setShareWith(event.target.value)}><option value="">Nadie por ahora</option>{friends.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}</select><small>La invitación se envía al crear la sala.</small></div>}
+    {deletingListId && (
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeletingListId(null) }}>
+        <form className="modal-card" onSubmit={(event) => { event.preventDefault(); void deleteList(deletingListId) }}>
+          <button type="button" className="modal-close" onClick={() => setDeletingListId(null)}>×</button>
+          <span className="section-kicker">ELIMINAR LISTA</span>
+          <h2>¿Estás seguro?</h2>
+          <p>Esta acción eliminará la lista y todos sus videos. No se puede deshacer.</p>
+          <div className="modal-actions">
+            <button type="button" className="text-link" onClick={() => setDeletingListId(null)}>Cancelar</button>
+            <button className="primary-button delete-list-btn" type="submit">Eliminar lista</button>
+          </div>
+        </form>
+      </div>
+    )}
   </div>
 }
 

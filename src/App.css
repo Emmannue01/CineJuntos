@@ -995,6 +995,30 @@
 .voice-status.voice-waiting { color: var(--subtle); }
 .voice-status.voice-error { color: var(--red); }
 
+
+
+/* ── Invitaciones con botones verde/rojo ── */
+.invite-actions { display: flex; gap: 8px; }
+.accept-invite { border-color: var(--accent-border); color: var(--accent); background: var(--accent-soft); }
+.accept-invite:hover { border-color: var(--accent); background: var(--accent); color: #ffffff; }
+.accept-invite:hover > svg { color: #ffffff; }
+.decline-invite { border-color: var(--red-border); color: var(--red); background: var(--red-soft); }
+.decline-invite:hover { border-color: var(--red); background: var(--red); color: #ffffff; }
+.decline-invite:hover > svg { color: #ffffff; }
+
+/* ── Editar nombre de lista ── */
+.edit-list-input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 4px; outline: none; color: var(--text); background: var(--ink-soft); font-size: 11px; }
+
+.list-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.list-actions .delete-list { color: var(--subtle); font-size: 9px; }
+.list-actions .delete-list:hover { color: var(--red); }
+
+.modal-actions { display: flex; gap: 10px; margin-top: 15px; }
+.modal-actions .text-link { color: var(--subtle); font-size: 10px; }
+.modal-actions .text-link:hover { color: var(--accent); }
+.modal-actions .delete-list-btn { background: var(--red); border-color: var(--red); color: #ffffff; }
+.modal-actions .delete-list-btn:hover { background: var(--red-bright); border-color: var(--red-bright); }
+
 /* ── Amigos y solicitudes: responsividad móvil mejorada ── */
 @media (max-width: 620px) {
   .friends-columns { grid-template-columns: minmax(0, 1fr); gap: 20px; }
