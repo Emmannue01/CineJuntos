@@ -197,7 +197,31 @@ function RoomExperience(props: {
         <div className="room-queue-bar"><div><span className="section-kicker">EN LA COLA</span><strong>{currentQueue.length ? `${currentQueue.length} video${currentQueue.length === 1 ? '' : 's'} más` : 'Este es el último video'}</strong></div>{currentQueue[0] && <div className="queue-next">{currentQueue[0].thumbnail && <img src={currentQueue[0].thumbnail} alt="" />}<span><small>DESPUÉS</small><strong>{currentQueue[0].title}</strong></span></div>}</div>
       </section>
       <aside className={`chat-panel chat-open`}><div className="chat-header"><div><span className="section-kicker">COMENTARIOS EN VIVO</span><h2><MessageCircle size={17} /> Sala de chat</h2></div><span className="chat-online"><span className="live-dot" /> {partner ? '2 aquí' : '1 aquí'}</span></div>
-        <div className="voice-controls"><div className={`voice-status voice-${voice.status}`}><span className="live-dot" />{voice.error || (voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando…)': 'Chat de voz')}</div>{partnerUid && <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>{voice.muted ? <MicOff size={15} /> : <Mic size={15} />}{voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}</button>}{partnerUid && voice.status === 'connected' && <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz"><PhoneOff size={15} /></button>}<audio ref={remoteAudioRef} autoPlay /></div>
+        <div className="voice-controls">
+          <div className={`voice-status voice-${voice.status}`}>
+            <span className="live-dot" />
+            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando automáticamente…)': 'Chat de voz'}
+          </div>
+          {partnerUid && voice.status === 'connected' && (
+            <div className="voice-actions">
+              <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>
+                {voice.muted ? <MicOff size={16} /> : <Mic size={16} />}
+                <span>{voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}</span>
+              </button>
+              <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz">
+                <PhoneOff size={16} />
+                <span>Colgar</span>
+              </button>
+            </div>
+          )}
+          {partnerUid && voice.status === 'error' && (
+            <button className="voice-action" onClick={() => voice.retry()} title="Reintentar conexión de voz">
+              <Mic size={16} />
+              <span>Reintentar</span>
+            </button>
+          )}
+          <audio ref={remoteAudioRef} autoPlay />
+        </div>
         <div className="chat-messages">{messages.length ? messages.map((item) => <ChatBubble message={item} mine={item.uid === uid} key={item.id} />) : <div className="chat-empty"><div className="chat-empty-icon"><MessageCircle size={19} /></div><strong>La sala está en silencio</strong><small>Di hola o manda una reacción.</small></div>}<div ref={messageEndRef} /></div>
         <div className="reaction-row">{reactions.map((emoji) => <button key={emoji} onClick={() => void sendText('reaction', emoji)} aria-label={`Enviar reacción ${emoji}`}>{emoji}</button>)}</div>
         <form className="chat-compose" onSubmit={(event) => void send(event)}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe algo..." maxLength={500} disabled={ended} /><button aria-label="Enviar mensaje" disabled={!message.trim() || ended}><Send size={16} /></button></form>

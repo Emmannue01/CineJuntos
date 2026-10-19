@@ -26,13 +26,6 @@
       ]
     },
     {
-      "collectionGroup": "videos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "position", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "watchlists",
       "queryScope": "COLLECTION",
       "fields": [

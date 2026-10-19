@@ -17,6 +17,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const initRef = useRef(false)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCountRef = useRef(0)
+  const hasConnectedRef = useRef(false)
 
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
@@ -39,10 +40,11 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     setStatus('idle')
     initRef.current = false
     retryCountRef.current = 0
+    hasConnectedRef.current = false
   }
 
   async function start() {
-    if (!peerUid || connectionRef.current || initRef.current) return
+    if (!peerUid || connectionRef.current || initRef.current || hasConnectedRef.current) return
     initRef.current = true
     setError('')
     setStatus('connecting')
@@ -72,6 +74,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       connection.onconnectionstatechange = () => {
         if (connection.connectionState === 'connected') {
           setStatus('connected')
+          hasConnectedRef.current = true
           if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
         } else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
           setStatus('waiting')
@@ -161,6 +164,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null }
     closeConnection()
     retryCountRef.current = 0
+    hasConnectedRef.current = false
     setError('')
     setStatus('connecting')
     void start()
@@ -181,20 +185,22 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     } catch { /* ok */ }
   }
 
-  // Auto-conectar al entrar a la sala — como Discord, sin botón de conectar
+  // Auto-conectar al entrar a la sala — como Discord, conecta una sola vez y se mantiene
   useEffect(() => {
     if (!peerUid) {
       setStatus('idle')
       return
     }
-    initRef.current = false
-    closeConnection()
-    void start()
+    // Solo iniciar una vez, no reiniciar en cada re-render
+    if (!initRef.current && !hasConnectedRef.current) {
+      void start()
+    }
     return () => {
-      closeConnection()
+      // No cerrar aquí — solo cerrar cuando el usuario cuelgue o salga de la sala
     }
   }, [peerUid, roomId, uid])
 
+  // Limpiar solo cuando el componente se desmonta completamente (salir de la sala)
   useEffect(() => () => {
     stopsRef.current.forEach((stopListener) => stopListener())
     connectionRef.current?.close()

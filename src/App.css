@@ -977,3 +977,21 @@
 
 /* Perfil del usuario propio mejorado */
 .profile-page .profile-layout { margin-top: 20px; }
+
+/* ── Controles de voz estilo Discord ── */
+.voice-actions { display: flex; gap: 8px; align-items: center; }
+.voice-action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-raised); color: var(--text); font-size: 9px; cursor: pointer; transition: all .16s; }
+.voice-action:hover { border-color: var(--accent); background: var(--accent-soft); }
+.voice-action span { font-size: 9px; font-weight: 600; }
+.voice-hangup { border-color: var(--red-border); color: var(--red); background: var(--red-soft); }
+.voice-hangup:hover { border-color: var(--red); background: var(--red); color: #ffffff; }
+.voice-hangup:hover span { color: #ffffff; }
+
+/* Estado de conexión de voz */
+.voice-status { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 9px; color: var(--muted); }
+.voice-status.voice-connected { color: var(--accent); }
+.voice-status.voice-connected .live-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.voice-status.voice-connecting { color: var(--subtle); }
+.voice-status.voice-waiting { color: var(--subtle); }
+.voice-status.voice-error { color: var(--red); }
+
