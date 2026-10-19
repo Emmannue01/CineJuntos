@@ -193,10 +193,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { auth, googleProvider, signInWithPopup, signInWithRedirect } = authSdk
       setAuthError('')
 
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
       try {
-        // Usar signInWithPopup en todos los entornos (móvil y escritorio).
-        // Los navegadores móviles modernos (iOS Safari, Android Chrome) gestionan popups sin problemas,
-        // mientras que signInWithRedirect pierde el estado de la sesión por el bloqueo de cookies de terceros.
+        // En móvil usar signInWithRedirect directamente (más compatible que popup en iOS Safari y Android Chrome)
+        if (isMobile) {
+          await signInWithRedirect(auth, googleProvider)
+          return 'redirect' as const
+        }
+
+        // En escritorio usar popup primero
         const credential = await signInWithPopup(auth, googleProvider)
         setUser(credential.user)
         setLoading(false)
@@ -216,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw error
         }
 
-        // Si el navegador bloqueó completamente los popups (ej. webview restrictivo), recurrir a redirect como alternativa
+        // Si el navegador bloqueó completamente los popups, recurrir a redirect como alternativa
         if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(code)) {
           await signInWithRedirect(auth, googleProvider)
           return 'redirect' as const
