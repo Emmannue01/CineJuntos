@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Circle, Clock3, Copy, Expand, ExternalLink, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
-import { httpsCallable } from 'firebase/functions'
+import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
 import { onValue, ref } from 'firebase/database'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/AppShell'
 import StatusAvatar from '../components/StatusAvatar'
-import { functions } from '../firebase/functions'
 import { rtdb } from '../firebase/database'
 import { readableError } from '../lib/errors'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
@@ -28,7 +26,6 @@ export default function RoomPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [friends, setFriends] = useState<UserProfile[]>([])
   const [message, setMessage] = useState('')
-  const [latency, setLatency] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -53,19 +50,7 @@ export default function RoomPage() {
     return () => stops.forEach((stop) => stop())
   }, [joined, user, roomId])
 
-  useEffect(() => {
-    if (!joined) return
-    let active = true
-    const ping = httpsCallable<undefined, { serverTime: number }>(functions, 'measureLatency')
-    const measure = async () => {
-      const started = performance.now()
-      try { await ping(); if (active) setLatency(Math.max(1, Math.round((performance.now() - started) / 2))) }
-      catch { if (active) setLatency(null) }
-    }
-    void measure()
-    const timer = window.setInterval(() => void measure(), 25000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [joined])
+
 
   async function exit() {
     setBusy(true)
@@ -79,13 +64,13 @@ export default function RoomPage() {
 
   if (!joined) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>{error || 'Preparando la sala…'}</span>{error && <button className="small-outline-button" onClick={() => navigate('/')}>Volver al inicio</button>}</div>
   if (!room || !user) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>Cargando la función…</span></div>
-  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} latency={latency} error={error} setError={setError} onExit={exit} busy={busy} setBusy={setBusy} chatOpen={chatOpen} setChatOpen={setChatOpen} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
+  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} error={error} setError={setError} onExit={exit} busy={busy} setBusy={setBusy} chatOpen={chatOpen} setChatOpen={setChatOpen} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
 }
 
 function RoomExperience(props: {
-  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; latency: number | null; error: string; setError: (value: string) => void; onExit: () => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
+  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; onExit: () => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
 }) {
-  const { room, uid, username, avatar, state, messages, friends, latency, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
+  const { room, uid, username, avatar, state, messages, friends, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
   const messageEndRef = useRef<HTMLDivElement>(null)
@@ -203,7 +188,7 @@ function RoomExperience(props: {
         <form className="chat-compose" onSubmit={(event) => void send(event)}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe algo..." maxLength={500} disabled={ended} /><button aria-label="Enviar mensaje" disabled={!message.trim() || ended}><Send size={16} /></button></form>
       </aside>
     </div>
-    <div className="room-bottom-actions"><label className="invite-friend"><Users size={15} /><span>Invitar a un amigo</span><select onChange={(event) => void invite(event)} disabled={busy || room.memberUids.length + room.invitedUids.length >= 2} defaultValue=""><option value="">Elegir amigo…</option>{inviteOptions.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}</select></label><span className="latency-indicator"><Circle size={10} fill="currentColor" /> Latencia aprox. {latency === null ? '—' : `~${latency} ms`}</span><button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button></div>
+    <div className="room-bottom-actions"><label className="invite-friend"><Users size={15} /><span>Invitar a un amigo</span><select onChange={(event) => void invite(event)} disabled={busy || room.memberUids.length + room.invitedUids.length >= 2} defaultValue=""><option value="">Elegir amigo…</option>{inviteOptions.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}</select></label><button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button></div>
     <button className="chat-mobile-toggle" onClick={() => setChatOpen(!chatOpen)}><MessageCircle size={17} /> {chatOpen ? 'Ocultar chat' : `Abrir chat · ${messages.length}`}</button>
   </div>
 }
