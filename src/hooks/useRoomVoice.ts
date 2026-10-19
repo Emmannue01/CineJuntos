@@ -17,6 +17,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const initRef = useRef(false)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCountRef = useRef(0)
+  const statusRef = useRef<VoiceStatus>('idle')
 
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
@@ -206,6 +207,24 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     connectionRef.current?.close()
     streamRef.current?.getTracks().forEach((track) => track.stop())
   }, [])
+
+  // Mantener el ref de estado actualizado para leerlo en el intervalo sin reiniciarlo
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  // Reconectar automáticamente cada 2 segundos si la voz no está conectada
+  useEffect(() => {
+    if (!peerUid) return
+    const interval = setInterval(() => {
+      if (statusRef.current !== 'connected' && statusRef.current !== 'connecting') {
+        if (statusRef.current === 'error' || statusRef.current === 'idle') {
+          void start()
+        }
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [peerUid, roomId, uid])
 
   return { status, muted, error, stream: remoteStream, start, stop, toggleMute, retry }
 }

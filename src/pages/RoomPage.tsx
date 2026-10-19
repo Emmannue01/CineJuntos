@@ -200,17 +200,16 @@ function RoomExperience(props: {
           {voice.status === 'connected' && (
             <div className="voice-actions">
               <button className="voice-action" onClick={() => voice.toggleMute()} title={voice.muted ? 'Activar micrófono' : 'Silenciar micrófono'}>
-                {voice.muted ? <MicOff size={16} /> : <Mic size={16} />}
+                {voice.muted ? <MicOff size={18} /> : <Mic size={18} />}
               </button>
               <button className="voice-hangup" onClick={() => void voice.stop()} title="Salir del chat de voz" aria-label="Salir del chat de voz">
-                <PhoneOff size={16} />
+                <PhoneOff size={18} />
               </button>
             </div>
           )}
           {voice.status === 'error' && (
             <button className="voice-action" onClick={() => voice.retry()} title="Reintentar conexión de voz">
-              <Mic size={16} />
-              <span>Reintentar</span>
+              <Mic size={18} />
             </button>
           )}
           <div className="voice-hint" style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
