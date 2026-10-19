@@ -995,3 +995,27 @@
 .voice-status.voice-waiting { color: var(--subtle); }
 .voice-status.voice-error { color: var(--red); }
 
+/* ── Amigos y solicitudes: responsividad móvil mejorada ── */
+@media (max-width: 620px) {
+  .friends-columns { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .person-row { gap: 8px; padding: 10px; min-height: auto; }
+  .person-copy { gap: 2px; }
+  .person-copy strong { font-size: 10px; }
+  .person-copy small { font-size: 8px; }
+  .person-row .remove-friend { width: 26px; height: 26px; }
+  .person-row .remove-friend > svg { width: 16px; height: 16px; }
+  .request-actions { display: flex; gap: 6px; }
+  .request-actions .accept-invite { width: 32px; height: 32px; }
+  .request-actions .quiet-icon { width: 32px; height: 32px; }
+  .request-actions .accept-invite > svg { width: 17px; height: 17px; }
+  .request-actions .quiet-icon > svg { width: 16px; height: 16px; }
+  .people-list { gap: 6px; }
+  .friends-search-section { padding: 14px 12px; }
+  .friends-search-section .section-heading { margin-bottom: 12px; }
+  .friends-search-section h2 { font-size: 16px; }
+  .search-field { min-height: 40px; }
+  .search-field input { font-size: 11px; }
+  .search-field button { width: 30px; height: 30px; }
+  .search-form > small { font-size: 8px; }
+}
+
