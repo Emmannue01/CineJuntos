@@ -158,7 +158,7 @@ export default function WatchlistPage() {
     </div>}
      {listModal && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setListModal(null) }}>
-        <form className="modal-card" onSubmit={saveList}>
+        <form className="modal-card list-modal" onSubmit={saveList}>
           <button type="button" className="modal-close" onClick={() => setListModal(null)}>×</button>
           <div className="modal-header">
             <span className="modal-kicker"><Bookmark size={13} /> {listModal === 'create' ? 'NUEVA LISTA' : 'EDITAR LISTA'}</span>
@@ -179,7 +179,7 @@ export default function WatchlistPage() {
             {newListMode === 'shared' && (
               <div className="shared-friend-row">
                 <label>Amigo
-                  <select value={newListFriend} onChange={(event) => setNewListFriend(event.target.value)} required>
+                  <select className="list-type-select" value={newListFriend} onChange={(event) => setNewListFriend(event.target.value)} required>
                     <option value="">Elige a un amigo</option>
                     {friends.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}
                   </select>
@@ -189,7 +189,6 @@ export default function WatchlistPage() {
             <div className="public-toggle-row" onClick={() => setNewListPublic(!newListPublic)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setNewListPublic(!newListPublic) }}>
               <div>
                 <span className="public-toggle-label">{newListPublic ? 'Lista pública' : 'Lista privada'}</span>
-       
               </div>
               <div className="public-toggle-switch">
                 <input type="checkbox" checked={newListPublic} onChange={() => setNewListPublic(!newListPublic)} readOnly />
@@ -197,8 +196,8 @@ export default function WatchlistPage() {
               </div>
             </div>
           </div>
-          <div className="modal-actions">
-            {listModal === 'edit' && <button type="button" className="text-link delete-list" disabled={busy === 'delete-list'} onClick={() => void deleteList()}><Trash2 size={14} /> Eliminar lista</button>}
+          <div className="modal-actions list-modal-actions">
+            {listModal === 'edit' && <button type="button" className="text-link delete-list" disabled={busy === 'delete-list'} onClick={() => void deleteList()}><Trash2 size={14} /> Eliminar </button>}
             <button type="button" className="text-link" onClick={() => setListModal(null)}>Cancelar</button>
             <button className="primary-button" type="submit" disabled={busy === 'list'}>{busy === 'list' ? <LoaderCircle className="spin" size={16} /> : listModal === 'create' ? 'Crear lista' : 'Guardar'}</button>
           </div>

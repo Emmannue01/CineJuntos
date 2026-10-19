@@ -248,55 +248,82 @@ function RoomExperience(props: {
     </div>
     {changeVideoOpen && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangeVideoOpen(false) }}>
-        <form className="modal-card" onSubmit={(event) => { event.preventDefault() }}>
-          <button type="button" className="modal-close" onClick={() => setChangeVideoOpen(false)}>×</button>
-          <span className="section-kicker">CAMBIAR VIDEO</span>
-          <h2>Elige de tu lista</h2>
-          {listVideos.length === 0 ? (
-            <div className="empty-inline" style={{ justifyContent: 'center', textAlign: 'center', padding: '20px 0' }}>
-              <div><strong>No hay videos en la lista</strong><small>Añade videos desde "Mi lista" para cambiarlos aquí.</small></div>
+        <section className="modal-card change-video-modal" role="dialog" aria-modal="true" aria-labelledby="change-video-title">
+          <button type="button" className="modal-close" onClick={() => setChangeVideoOpen(false)} aria-label="Cerrar">×</button>
+          <header className="modal-header">
+            <div>
+              <span className="modal-kicker"><Settings2 size={13} /> CAMBIAR VIDEO</span>
+              <h2 id="change-video-title">Elige de tu lista</h2>
             </div>
-          ) : (
-            <div className="video-list" style={{ maxHeight: '400px', overflowY: 'auto', borderTop: '1px solid var(--line)' }}>
-              {listVideos.map((video) => (
-                <article key={video.id} className="video-item" style={{ padding: '8px 3px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }} onClick={() => void selectListVideo(video)}>
-                  <div className="video-thumb" style={{ width: '70px', height: '42px', flexShrink: 0 }}>
-                    {video.thumbnail ? <img src={video.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '3px' }} /> : <span className="video-thumb-placeholder"><Film size={15} /></span>}
-                  </div>
-                  <div className="video-info" style={{ flex: 1, minWidth: 0 }}>
-                    <strong className="video-title-clamp" style={{ fontSize: '10px', lineHeight: '1.3' }}>{video.title}</strong>
-                    <small style={{ fontSize: '8px' }}>{video.provider === 'youtube' ? 'YouTube' : video.provider || 'Video'}</small>
-                  </div>
-                  <button className="watch-button" style={{ marginLeft: 'auto', padding: '4px 8px', fontSize: '9px' }} onClick={(event) => { event.stopPropagation(); void selectListVideo(video) }}>Seleccionar</button>
-                </article>
-              ))}
-            </div>
-          )}
-          <button type="button" className="primary-button" style={{ width: '100%', marginTop: '10px' }} onClick={() => setChangeVideoOpen(false)}>Cerrar</button>
-        </form>
+          </header>
+          <div className="modal-body change-video-body">
+            {listVideos.length === 0 ? (
+              <div className="change-video-empty">
+                <span className="empty-icon"><Film size={18} /></span>
+                <div><strong>No hay videos en la lista</strong><small>Añade videos desde "Mi lista" para cambiarlos aquí.</small></div>
+              </div>
+            ) : (
+              <div className="change-video-list">
+                {listVideos.map((video) => (
+                  <button type="button" className="change-video-item" key={video.id} onClick={() => void selectListVideo(video)} disabled={busy}>
+                    <span className="change-video-thumb">
+                      {video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={17} /></span>}
+                    </span>
+                    <span className="change-video-copy">
+                      <strong>{video.title}</strong>
+                      <small>{providerLabel(video.provider)}</small>
+                    </span>
+                    <span className="change-video-action">
+                      {busy ? <LoaderCircle size={12} className="spin" /> : <Play size={12} fill="currentColor" />}
+                      <span>{busy ? 'Cambiando' : 'Poner'}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <footer className="modal-actions">
+            <button type="button" className="primary-button" onClick={() => setChangeVideoOpen(false)}>Cerrar</button>
+          </footer>
+        </section>
       </div>
     )}
     {exitOpen && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExitOpen(false) }}>
-        <form className="modal-card" onSubmit={(event) => { event.preventDefault() }}>
-          <button type="button" className="modal-close" onClick={() => setExitOpen(false)}>×</button>
-          <span className="section-kicker">SALIR DE LA SALA</span>
-          <h2>¿Qué deseas hacer?</h2>
-          <div className="exit-options">
-            <button type="button" className="exit-option" onClick={() => void leaveOnly()}>
-              <span>Solo salir</span>
-              <small>La sala sigue activa para tu amigo</small>
-            </button>
-            <button type="button" className="exit-option exit-end" onClick={() => void endRoom()}>
-              <span>Terminar sala</span>
-              <small>La función se acaba para todos</small>
-            </button>
+        <section className="modal-card exit-modal" role="dialog" aria-modal="true" aria-labelledby="exit-room-title">
+          <button type="button" className="modal-close" onClick={() => setExitOpen(false)} aria-label="Cerrar">×</button>
+          <header className="modal-header">
+            <div>
+              <span className="modal-kicker"><ArrowLeft size={13} /> SALIR DE LA SALA</span>
+              <h2 id="exit-room-title">¿Qué deseas hacer?</h2>
+            </div>
+          </header>
+          <div className="modal-body exit-body">
+            <div className="exit-options">
+              <button type="button" className="exit-option" onClick={() => void leaveOnly()}>
+                <span>Solo salir</span>
+                <small>La sala sigue activa para tu amigo</small>
+              </button>
+              <button type="button" className="exit-option exit-end" onClick={() => void endRoom()}>
+                <span>Terminar sala</span>
+                <small>La función se acaba para todos</small>
+              </button>
+            </div>
           </div>
-          <button type="button" className="primary-button" style={{ width: '100%', marginTop: '10px' }} onClick={() => setExitOpen(false)}>Cancelar</button>
-        </form>
+          <footer className="modal-actions">
+            <button type="button" className="text-link" onClick={() => setExitOpen(false)}>Cancelar</button>
+          </footer>
+        </section>
       </div>
     )}
   </div>
+}
+
+function providerLabel(provider?: VideoItem['provider']) {
+  if (provider === 'direct') return 'Video/audio directo'
+  if (provider === 'youtube') return 'YouTube'
+  if (provider === 'embed') return 'Reproductor externo'
+  return 'Contenido multimedia'
 }
 
 function partnerOnlineLabel(uid: string) {

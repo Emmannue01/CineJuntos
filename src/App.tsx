@@ -9,6 +9,7 @@ import './App.css'
 const AuthPage = lazy(() => import('./pages/AuthPage'))
 const FriendsPage = lazy(() => import('./pages/FriendsPage'))
 const HomePage = lazy(() => import('./pages/HomePage'))
+const LegalPage = lazy(() => import('./pages/LegalPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'))
@@ -18,6 +19,8 @@ const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
 const router = createBrowserRouter([
   { path: '/login', element: <AuthPage mode="login" /> },
   { path: '/registro', element: <AuthPage mode="register" /> },
+  { path: '/terminos', element: <LegalPage mode="terms" /> },
+  { path: '/privacidad', element: <LegalPage mode="privacy" /> },
   {
     element: <ProtectedRoute />,
     children: [
