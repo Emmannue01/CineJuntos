@@ -101,10 +101,20 @@ export function subscribeWatchlists(uid: string, callback: (lists: Watchlist[]) 
   })
 }
 
-export async function createWatchlist(ownerUid: string, name: string, friendUid?: string) {
+export async function createWatchlist(ownerUid: string, name: string, friendUid?: string, isPublic = false) {
   const memberUids = friendUid ? [ownerUid, friendUid].sort() : [ownerUid]
-  const result = await addDoc(collection(db, 'watchlists'), { name: name.trim() || 'Nuestra lista', ownerUid, memberUids, shared: Boolean(friendUid), createdAt: Date.now() })
+  const result = await addDoc(collection(db, 'watchlists'), { name: name.trim() || 'Nuestra lista', ownerUid, memberUids, shared: Boolean(friendUid), isPublic, createdAt: Date.now() })
   return result.id
+}
+
+export function subscribePublicWatchlists(uid: string, callback: (lists: Watchlist[]) => void) {
+  return onSnapshot(query(collection(db, 'watchlists'), where('ownerUid', '==', uid), where('isPublic', '==', true)), (snapshot) => {
+    callback(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Watchlist))
+  })
+}
+
+export async function toggleWatchlistPublic(listId: string, isPublic: boolean) {
+  return updateDoc(doc(db, 'watchlists', listId), { isPublic })
 }
 
 export function subscribeVideos(listId: string, callback: (videos: VideoItem[]) => void) {
@@ -257,7 +267,7 @@ export async function leaveRoom(roomId: string, uid: string) {
   if (!room.memberUids.includes(uid)) return
 
   const memberUids = room.memberUids.filter((id) => id !== uid)
-  const ended = room.ownerUid === uid || memberUids.length === 0
+  const ended = memberUids.length === 0
 
   await updateDoc(roomRef, {
     memberUids,

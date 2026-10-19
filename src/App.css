@@ -954,3 +954,26 @@
   .invite-button { width: 100%; justify-content: center; }
   .invite-dropdown { position: static; width: 100%; margin-top: 0; border-radius: 0; box-shadow: none; border: 0; border-top: 1px solid var(--line); }
 }
+
+/* ── Modal salir de sala ── */
+.exit-options { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.exit-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-raised); color: var(--text); font-size: 10px; cursor: pointer; transition: all .16s; text-align: left; }
+.exit-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.exit-option span { display: block; font-weight: 600; font-size: 11px; }
+.exit-option small { color: var(--muted); font-size: 9px; }
+.exit-option.exit-end { border-color: var(--red-border); color: var(--red); background: var(--red-soft); }
+.exit-option.exit-end:hover { border-color: var(--red); background: var(--red); color: #ffffff; }
+.exit-option.exit-end small { color: var(--red); }
+.exit-option.exit-end:hover small { color: #ffffff; }
+
+/* ── Perfil público ── */
+.public-profile-page { padding-top: 20px; }
+.public-lists-section { margin-top: 20px; }
+.public-lists-section .video-item { cursor: default; }
+.public-lists-section .video-item:hover { background: transparent; }
+
+.profile-link { cursor: pointer; }
+.profile-link:active { opacity: 0.9; }
+
+/* Perfil del usuario propio mejorado */
+.profile-page .profile-layout { margin-top: 20px; }

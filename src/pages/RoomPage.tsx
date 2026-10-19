@@ -10,7 +10,7 @@ import { readableError } from '../lib/errors'
 import { useSynchronizedPlayer } from '../hooks/useSynchronizedPlayer'
 import { useSynchronizedMedia } from '../hooks/useSynchronizedMedia'
 import { useRoomVoice } from '../hooks/useRoomVoice'
-import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState, subscribeVideos, updateRoomVideo } from '../services/appService'
+import { advanceRoom, inviteToRoom, joinRoom, leaveRoom, markRoomEnded, sendChatMessage, subscribeChat, subscribeFriends, subscribeRoom, subscribeRoomState, subscribeVideos, updateRoomVideo } from '../services/appService'
 import type { ChatMessage, Room, RoomState, UserProfile, VideoItem } from '../types'
 import { mediaEmbedUrl } from '../lib/media'
 
@@ -57,25 +57,15 @@ export default function RoomPage() {
 
 
 
-  async function exit() {
-    setBusy(true)
-    if (!user) {
-      navigate('/')
-      return
-    }
-    try { await leaveRoom(roomId, user.uid) } catch (cause) { setError(readableError(cause)) }
-    navigate('/')
-  }
-
   if (!joined) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>{error || 'Preparando la sala…'}</span>{error && <button className="small-outline-button" onClick={() => navigate('/')}>Volver al inicio</button>}</div>
   if (!room || !user) return <div className="room-loading"><LoaderCircle size={23} className="spin" /><span>Cargando la función…</span></div>
-  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} error={error} setError={setError} onExit={exit} busy={busy} setBusy={setBusy} chatOpen={chatOpen} setChatOpen={setChatOpen} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
+  return <RoomExperience key={room.id} room={room} uid={user.uid} username={profile?.displayName || user.displayName || 'Tú'} avatar={profile?.avatar || user.photoURL || ''} state={state} messages={messages} friends={friends} error={error} setError={setError} busy={busy} setBusy={setBusy} chatOpen={chatOpen} setChatOpen={setChatOpen} message={message} setMessage={setMessage} copied={copied} setCopied={setCopied} />
 }
 
 function RoomExperience(props: {
-  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; onExit: () => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
+  room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; busy: boolean; setBusy: (value: boolean) => void; chatOpen: boolean; setChatOpen: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
 }) {
-  const { room, uid, username, avatar, state, messages, friends, error, setError, onExit, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
+  const { room, uid, username, avatar, state, messages, friends, error, setError, busy, setBusy, chatOpen, setChatOpen, message, setMessage, copied, setCopied } = props
   const partnerUid = room.memberUids.find((member) => member !== uid)
   const voice = useRoomVoice(room.id, uid, partnerUid || '')
   const [playError, setPlayError] = useState('')
@@ -105,6 +95,8 @@ function RoomExperience(props: {
   const [listVideos, setListVideos] = useState<VideoItem[]>([])
   const [changeVideoOpen, setChangeVideoOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [exitOpen, setExitOpen] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!room.watchlistId) { setListVideos([]); return }
@@ -145,11 +137,6 @@ function RoomExperience(props: {
     finally { setBusy(false) }
   }
 
-  async function exitRoom() {
-    if (voice.active) await voice.stop()
-    onExit()
-  }
-
   async function copyLink() {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); window.setTimeout(() => setCopied(false), 1800) }
     catch { setPlayError('No se pudo copiar el enlace. Puedes copiarlo desde la barra del navegador.') }
@@ -173,6 +160,26 @@ function RoomExperience(props: {
       setPlayError('')
     } catch (cause) { setPlayError(readableError(cause)) }
     finally { setBusy(false) }
+  }
+
+  async function exitRoom() {
+    setExitOpen(true)
+  }
+
+  async function leaveOnly() {
+    setExitOpen(false)
+    setBusy(true)
+    try { await leaveRoom(room.id, uid) } catch (cause) { setError(readableError(cause)) }
+    setBusy(false)
+    navigate('/')
+  }
+
+  async function endRoom() {
+    setExitOpen(false)
+    setBusy(true)
+    try { await markRoomEnded(room.id) } catch (cause) { setError(readableError(cause)) }
+    setBusy(false)
+    navigate('/')
   }
 
   const play = () => { setPlayError(''); player.play() }
@@ -220,9 +227,8 @@ function RoomExperience(props: {
           </div>
         )}
       </div>
-      <button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button>
+      <button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Salir de la sala</button>
     </div>
-    <button className="chat-mobile-toggle" onClick={() => setChatOpen(!chatOpen)}><MessageCircle size={17} /> {chatOpen ? 'Ocultar chat' : `Abrir chat · ${messages.length}`}</button>
     {changeVideoOpen && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangeVideoOpen(false) }}>
         <form className="modal-card" onSubmit={(event) => { event.preventDefault() }}>
@@ -250,6 +256,26 @@ function RoomExperience(props: {
             </div>
           )}
           <button type="button" className="primary-button" style={{ width: '100%', marginTop: '10px' }} onClick={() => setChangeVideoOpen(false)}>Cerrar</button>
+        </form>
+      </div>
+    )}
+    {exitOpen && (
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExitOpen(false) }}>
+        <form className="modal-card" onSubmit={(event) => { event.preventDefault() }}>
+          <button type="button" className="modal-close" onClick={() => setExitOpen(false)}>×</button>
+          <span className="section-kicker">SALIR DE LA SALA</span>
+          <h2>¿Qué deseas hacer?</h2>
+          <div className="exit-options">
+            <button type="button" className="exit-option" onClick={() => void leaveOnly()}>
+              <span>Solo salir</span>
+              <small>La sala sigue activa para tu amigo</small>
+            </button>
+            <button type="button" className="exit-option exit-end" onClick={() => void endRoom()}>
+              <span>Terminar sala</span>
+              <small>La función se acaba para todos</small>
+            </button>
+          </div>
+          <button type="button" className="primary-button" style={{ width: '100%', marginTop: '10px' }} onClick={() => setExitOpen(false)}>Cancelar</button>
         </form>
       </div>
     )}

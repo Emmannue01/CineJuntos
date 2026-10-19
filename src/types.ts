@@ -28,6 +28,7 @@ export interface Watchlist {
   ownerUid: string
   memberUids: string[]
   shared: boolean
+  isPublic?: boolean
 }
 
 export interface Room {
