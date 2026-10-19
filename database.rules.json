@@ -21,8 +21,7 @@
         },
         "state": {
           ".read": "auth != null",
-          ".write": "auth != null",
-          ".validate": "newData.hasChildren(['updatedAt', 'updatedBy']) && newData.child('updatedBy').val() === auth.uid && newData.child('updatedAt').isNumber()"
+          ".write": "auth != null"
         },
         "chat": {
           "$messageId": {
@@ -34,17 +33,13 @@
         "voice": {
           ".read": "auth != null",
           ".write": "auth != null",
-          "offers": {
-            "$uid": {
-              ".read": "auth != null",
-              ".write": "auth != null"
-            }
+          "offer": {
+            ".read": "auth != null",
+            ".write": "auth != null"
           },
-          "answers": {
-            "$uid": {
-              ".read": "auth != null",
-              ".write": "auth != null"
-            }
+          "answer": {
+            ".read": "auth != null",
+            ".write": "auth != null"
           },
           "candidates": {
             "$uid": {
@@ -61,9 +56,6 @@
         },
         "queue": {
           ".read": "auth != null",
-          ".write": "auth != null"
-        },
-        "queueUpdatedBy": {
           ".write": "auth != null"
         }
       }
