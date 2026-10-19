@@ -4,6 +4,8 @@ import { ArrowLeft, Globe, List, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 import { Avatar } from '../components/AppShell'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../firebase/firestore'
 import { subscribePublicWatchlists } from '../services/appService'
 import type { UserProfile, Watchlist } from '../types'
 
@@ -30,8 +32,6 @@ export default function PublicProfilePage() {
     // Cargar perfil desde Firestore
     const loadProfile = async () => {
       try {
-        const { db } = await import('../firebase/firestore')
-        const { doc, getDoc } = await import('firebase/firestore')
         const snap = await getDoc(doc(db, 'users', userId))
         if (!cancelled) {
           if (!snap.exists()) {
