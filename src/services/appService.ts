@@ -174,7 +174,7 @@ export async function advanceRoom(roomId: string, currentItemId?: string) {
     const next = (room.queue ?? [])[0]
     if (!next) {
       transaction.update(roomRef, { status: 'ended', queue: [], endedAt: Date.now() })
-      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
       await set(ref(rtdb, `rooms/${roomId}/queue`), room.queue || [])
       return { changed: true, room: { ...room, status: 'ended' } }
     }
@@ -195,12 +195,12 @@ export async function advanceRoom(roomId: string, currentItemId?: string) {
         watchlistId: next.listId,
         queue: (room.queue ?? []).slice(1),
       })
-      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: next.videoId, mediaUrl: next.mediaUrl || null, provider: mediaProvider(next), playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: next.videoId, mediaUrl: next.mediaUrl || null, provider: mediaProvider(next), playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
       await set(ref(rtdb, `rooms/${roomId}/queue`), (room.queue ?? []).slice(1))
       return { changed: true, room: { ...room, ...next, provider: mediaProvider(next), currentItemId: next.itemId, watchlistId: next.listId, queue: (room.queue ?? []).slice(1) } }
     }
     transaction.update(roomRef, { status: 'ended', queue: [], endedAt: Date.now() })
-    await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+    await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
     await set(ref(rtdb, `rooms/${roomId}/queue`), room.queue || [])
     return { changed: true, room: { ...room, status: 'ended' } }
   })

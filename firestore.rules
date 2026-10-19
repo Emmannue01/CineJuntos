@@ -18,8 +18,17 @@ service cloud.firestore {
     function isRoomMemberOrInvited(roomId) {
       return signedIn() && (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberUids || request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.invitedUids);
     }
+    function isRoomInvited(roomId) {
+      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.invitedUids;
+    }
+    function isRoomOwner(roomId) {
+      return signedIn() && request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerUid;
+    }
     function isRoomOwnerOrMember(roomId) {
-      return signedIn() && (request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerUid || request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberUids);
+      return signedIn() && (isRoomOwner(roomId) || isRoomMember(roomId));
+    }
+    function isRoomOwnerOrMemberOrInvited(roomId) {
+      return signedIn() && (isRoomOwner(roomId) || isRoomMember(roomId) || isRoomInvited(roomId));
     }
 
     match /users/{uid} {
@@ -102,7 +111,7 @@ service cloud.firestore {
     match /rooms/{roomId} {
       allow read: if isRoomMemberOrInvited(roomId);
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if isRoomOwnerOrMember(roomId);
+      allow update: if isRoomOwnerOrMemberOrInvited(roomId);
       allow delete: if false;
     }
 
