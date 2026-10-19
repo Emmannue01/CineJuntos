@@ -1,68 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Función para verificar si el usuario está autenticado
-    function signedIn() { return request.auth != null; }
-    function isOwnerOrMember(listId) {
-      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/watchlists/$(listId)).data.memberUids;
-    }
-
-    // Usuarios: lectura para autenticados, escribir solo propio
-    match /users/{uid} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == uid;
-      allow delete: if signedIn() && request.auth.uid == uid;
-    }
-
-    // Usernames
-    match /usernames/{username} {
-      allow read: if signedIn();
-      allow create, update, delete: if signedIn() && request.auth.uid == request.resource.data.uid;
-    }
-
-    // Friend requests
-    match /friendRequests/{requestId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid;
-      allow update: if signedIn() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
-      allow delete: if signedIn() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
-    }
-
-    // Friendships
-    match /friendships/{friendshipId} {
-      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
-      allow create, update, delete: if signedIn();
-    }
-
-    // Watchlists: lectura para miembros o si es pública
-    match /watchlists/{listId} {
-      allow read: if signedIn() && (request.auth.uid in resource.data.memberUids || resource.data.isPublic == true);
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow delete: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-
-      match /videos/{videoId} {
-        allow read: if signedIn();
-        allow create: if signedIn() && request.resource.data.addedBy == request.auth.uid;
-        allow update: if signedIn();
-        allow delete: if signedIn();
-      }
-    }
-
-    // Salas: lectura y escritura para autenticados
-    match /rooms/{roomId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn();
-      allow delete: if false;
-    }
-
-    // Invitaciones de sala
-    match /roomInvites/{inviteId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid;
-      allow update: if signedIn() && request.auth.uid == resource.data.toUid;
-      allow delete: if false;
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

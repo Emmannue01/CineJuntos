@@ -1,64 +1,6 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
-    "presence": {
-      "$uid": {
-        ".read": "auth != null",
-        ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['online', 'lastSeen'])"
-      }
-    },
-    "rooms": {
-      "$roomId": {
-        ".read": "auth != null",
-        ".write": "auth != null",
-        "members": {
-          ".read": "auth != null",
-          "$uid": {
-            ".write": "auth != null && auth.uid === $uid"
-          }
-        },
-        "state": {
-          ".read": "auth != null",
-          ".write": "auth != null"
-        },
-        "chat": {
-          "$messageId": {
-            ".read": "auth != null",
-            ".write": "auth != null && newData.child('uid').val() === auth.uid",
-            ".validate": "newData.hasChildren(['uid', 'username', 'avatar', 'text', 'createdAt', 'kind']) && newData.child('text').isString() && newData.child('text').val().length <= 500 && newData.child('kind').val().matches(/^(message|reaction)$/)"
-          }
-        },
-        "voice": {
-          ".read": "auth != null",
-          ".write": "auth != null",
-          "offer": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "answer": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "candidates": {
-            "$uid": {
-              ".read": "auth != null",
-              ".write": "auth != null"
-            }
-          },
-          "closed": {
-            "$uid": {
-              ".read": "auth != null",
-              ".write": "auth != null"
-            }
-          }
-        },
-        "queue": {
-          ".read": "auth != null",
-          ".write": "auth != null"
-        }
-      }
-    }
+    ".read": "auth != null",
+    ".write": "auth != null"
   }
 }
