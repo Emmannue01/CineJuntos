@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Globe, List, Users } from 'lucide-react'
+import { ArrowLeft, Globe, Home, List, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 import { Avatar } from '../components/AppShell'
@@ -67,6 +67,11 @@ export default function PublicProfilePage() {
 
   async function goBack() {
     navigate('/')
+  }
+
+  function goBackToPrevious() {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
   }
 
   if (loading) {
@@ -183,9 +188,14 @@ export default function PublicProfilePage() {
             </div>
           )}
         </section>
-        <button className="primary-button" onClick={goBack} style={{ marginTop: '20px' }}>
-          Volver al inicio <ArrowLeft size={16} />
-        </button>
+        <div className="public-profile-actions">
+          <button className="text-link" onClick={goBackToPrevious}>
+            <ArrowLeft size={16} /> Regresar
+          </button>
+          <button className="primary-button" onClick={goBack}>
+            Volver al inicio <Home size={16} />
+          </button>
+        </div>
       </div>
     </div>
   )

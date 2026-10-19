@@ -76,12 +76,27 @@ export async function searchUsers(term: string, currentUid: string) {
   return results
 }
 
+export function subscribeSentRequests(uid: string, callback: (requests: FriendRequest[]) => void) {
+  return onSnapshot(query(collection(db, 'friendRequests'), where('fromUid', '==', uid), where('status', '==', 'pending')), async (snapshot) => {
+    const requests = await Promise.all(snapshot.docs.map(async (item) => {
+      const data = item.data() as { fromUid: string; toUid: string; status: string; createdAt: number }
+      const recipient = await getDoc(doc(db, 'users', data.toUid))
+      return { id: item.id, ...data, toUser: recipient.exists() ? recipient.data() as UserProfile : undefined } as FriendRequest
+    }))
+    callback(requests)
+  })
+}
+
 export async function sendFriendRequest(fromUid: string, toUid: string) {
   if (fromUid === toUid) throw new Error('No puedes enviarte una solicitud a ti mismo.')
   const friendshipId = [fromUid, toUid].sort().join('_')
   if ((await getDoc(doc(db, 'friendships', friendshipId))).exists()) throw new Error('Ya son amigos.')
   const requestId = `${fromUid}_${toUid}`
   await setDoc(doc(db, 'friendRequests', requestId), { fromUid, toUid, status: 'pending', createdAt: Date.now() })
+}
+
+export async function cancelFriendRequest(requestId: string) {
+  await deleteDoc(doc(db, 'friendRequests', requestId))
 }
 
 export async function respondFriendRequest(request: FriendRequest, accept: boolean) {

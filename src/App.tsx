@@ -18,7 +18,6 @@ const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
 const router = createBrowserRouter([
   { path: '/login', element: <AuthPage mode="login" /> },
   { path: '/registro', element: <AuthPage mode="register" /> },
-  { path: '/perfil/:userId', element: <PublicProfilePage /> },
   {
     element: <ProtectedRoute />,
     children: [
@@ -30,6 +29,7 @@ const router = createBrowserRouter([
           { path: 'lista', element: <WatchlistPage /> },
           { path: 'sala/:roomId', element: <RoomPage /> },
           { path: 'perfil', element: <ProfilePage /> },
+          { path: 'perfil/:userId', element: <PublicProfilePage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

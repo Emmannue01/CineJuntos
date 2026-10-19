@@ -1,14 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Bookmark, Clapperboard, Film, ListVideo, LoaderCircle, MessageCircle, Mic, Pause, Play, Search, Sparkles, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bookmark, Check, Clapperboard, Clock3, Copy, Film, Globe, Link2, ListVideo, LoaderCircle, MessageCircle, Mic, Pause, Play, Plus, Search, Sparkles, Trash2, Users, Volume2, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 
 const tutorialSteps = [
-  { title: 'Encuentra qué ver', text: 'Busca videos en YouTube o pega un enlace multimedia para guardarlo.' },
-  { title: 'Armen una lista juntos', text: 'Crea una lista conjunta con un amigo y agreguen ideas entre los dos.' },
-  { title: 'Miren al mismo tiempo', text: 'Inicia una sala desde la lista y el video se sincroniza en ambas pantallas.' },
-  { title: 'Hablen durante la función', text: 'Comenten por chat, manden reacciones o activen el micrófono.' },
+  { title: 'Crea tu cuenta y tu perfil', text: 'Regístrate con tu correo o con Google y elige tu nombre, tu @usuario, una foto y una frase. Así te reconocerán tus amigos dentro de CineJuntos.' },
+  { title: 'Encuentra a tu gente', text: 'En Amigos busca por @usuario y envía solicitudes. Puedes aceptar o rechazar las que te llegan, cancelar las que enviaste y abrir el perfil de cada persona.' },
+  { title: 'Arma una lista juntos', text: 'Crea listas personales o conjuntas con un amigo. Tú decides si serán privadas o públicas: las públicas aparecen en tu perfil para que otros descubran lo que te gusta.' },
+  { title: 'Guarda cualquier enlace', text: 'Pega un enlace de video, audio o una página con reproductor. CineJuntos detecta el contenido y lo guarda en la lista que elijas.' },
+  { title: 'Organiza tu función', text: 'Marca videos como vistos o pendientes, súbelos y bájalos para ordenar la noche, o elimina los que ya no quieras. También puedes renombrar, hacer pública o borrar una lista completa.' },
+  { title: 'Inicia una sala compartida', text: 'Pulsa play en cualquier video y se abrirá una sala con el resto de la lista en cola. Play, pausa, avance y velocidad se sincronizan en ambas pantallas.' },
+  { title: 'Invita y comparte el enlace', text: 'Invita a un amigo desde la sala o comparte el enlace para que entre desde otro dispositivo. Las invitaciones aparecen en el inicio de tu amigo para aceptarlas o rechazarlas.' },
+  { title: 'Hablen durante la película', text: 'Usen el chat en vivo, manden reacciones con emojis o activen el micrófono para hablar. También pueden cambiar el video o la velocidad sin salir de la sala.' },
+  { title: 'Salir o terminar la función', text: 'Al salir puedes irte solo y dejar la sala activa para tu amigo, o terminar la función para todos. En Inicio siempre verás tus salas activas, invitaciones y lo pendiente de tu lista.' },
 ]
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
@@ -33,7 +38,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     const timer = window.setTimeout(() => {
       if (tutorialStep === tutorialSteps.length - 1) setTutorialPlaying(false)
       else setTutorialStep((current) => current + 1)
-    }, 4800)
+    }, 7000)
     return () => window.clearTimeout(timer)
   }, [tutorialOpen, tutorialPlaying, tutorialStep])
 
@@ -87,7 +92,6 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="form-kicker"><Film size={16} /> {isRegister ? 'TU PRIMERA ESCENA' : 'QUÉ BUENO VERTE'}</div>
           <h2>{isRegister ? 'Crea tu cuenta' : 'Inicia sesión'}</h2>
           <p className="form-subtitle">{isRegister ? 'Arma tu rincón para ver películas juntos.' : 'Vuelve a donde quedó la última película.'}</p>
-          <button type="button" className="tutorial-trigger" onClick={() => { setTutorialStep(0); setTutorialPlaying(true); setTutorialOpen(true) }}><Play size={15} fill="currentColor" /> Cómo usar CineJuntos <span>· 30 s</span></button>
           <button type="button" className="google-button" onClick={google} disabled={busy}><GoogleMark /> Continuar con Google</button>
           <div className="form-divider"><span /> o con tu correo <span /></div>
           <form className="auth-form" onSubmit={submit}>
@@ -101,6 +105,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <button type="submit" className="primary-button auth-submit" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{isRegister ? 'Crear mi cuenta' : 'Entrar a CineJuntos'}<span aria-hidden="true">↗</span></button>
           </form>
           <p className="auth-switch">{isRegister ? '¿Ya tienes cuenta?' : '¿Todavía no tienes cuenta?'} <Link to={isRegister ? '/login' : '/registro'}>{isRegister ? 'Inicia sesión' : 'Regístrate gratis'}</Link></p>
+          <button type="button" className="tutorial-trigger tutorial-trigger-bottom" onClick={() => { setTutorialStep(0); setTutorialPlaying(true); setTutorialOpen(true) }}><Play size={14} fill="currentColor" /> Cómo usar CineJuntos <span>· {tutorialSteps.length} pasos</span></button>
           <p className="auth-legal">Al continuar aceptas nuestros términos de uso y política de privacidad.</p>
         </div>
       </section>
@@ -112,10 +117,57 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 function TutorialScene({ step }: { step: number }) {
   return <div className={`tutorial-scene tutorial-scene-${step}`} key={step}>
     <div className="tutorial-app-bar"><span className="tutorial-app-mark"><Clapperboard size={14} /></span><strong>CineJuntos</strong><span className="tutorial-demo-avatar">CJ</span></div>
-    {step === 0 && <div className="tutorial-search-demo"><div className="tutorial-search-input"><Search size={14} /> Busca una peli o pega un enlace</div><div className="tutorial-poster-row"><span>AVENTURA</span><span>COMEDIA</span><span>DOCUMENTAL</span></div><div className="tutorial-demo-caption"><Play size={13} fill="currentColor" /> Añadir a la lista</div></div>}
-    {step === 1 && <div className="tutorial-list-demo"><div className="tutorial-list-heading"><ListVideo size={16} /><strong>Nuestra lista</strong><span><Users size={12} /> conjunta</span></div><div className="tutorial-list-row"><span className="tutorial-thumb thumb-one" /><span><b>La próxima película</b><small>Agregada por Alex</small></span><Bookmark size={15} /></div><div className="tutorial-list-row"><span className="tutorial-thumb thumb-two" /><span><b>Videos para el finde</b><small>Agregado por Sam</small></span><Bookmark size={15} /></div></div>}
-    {step === 2 && <div className="tutorial-watch-demo"><div className="tutorial-screen"><Film size={33} /><span>REPRODUCIENDO JUNTOS</span><i><Play size={12} fill="currentColor" /></i></div><div className="tutorial-sync-line"><span /><span>Sincronizado</span><span /></div><div className="tutorial-people"><span>Alex · viendo</span><span>Sam · viendo</span></div></div>}
-    {step === 3 && <div className="tutorial-chat-demo"><div className="tutorial-chat-message"><span>Alex</span><b>¡Esta escena es buenísima!</b></div><div className="tutorial-chat-message mine"><span>Tú</span><b>🍿 totalmente</b></div><div className="tutorial-chat-actions"><span><MessageCircle size={15} /> Mensajes</span><span><Mic size={15} /> Voz activa</span></div></div>}
+    {step === 0 && <div className="tutorial-profile-demo">
+      <div className="tutorial-profile-card"><span className="tutorial-profile-avatar">CJ</span><strong>Tu nombre</strong><small>@tu_usuario</small><p>“Historias que se disfrutan mejor acompañado.”</p></div>
+      <div className="tutorial-google-chip"><GoogleMark /> Continuar con Google</div>
+      <div className="tutorial-profile-tags"><span>Foto</span><span>Frase</span><span>@usuario</span></div>
+    </div>}
+    {step === 1 && <div className="tutorial-friends-demo">
+      <div className="tutorial-search-input"><Search size={14} /> Busca por @usuario</div>
+      <div className="tutorial-person"><span className="tutorial-person-avatar">S</span><span><b>Sam</b><small>@sam_cine</small></span><em>Añadir</em></div>
+      <div className="tutorial-person"><span className="tutorial-person-avatar alt">A</span><span><b>Alex</b><small>@alex_cine · quiere conectar</small></span><em className="accept">Aceptar</em></div>
+      <div className="tutorial-friend-note"><Check size={13} /> Solicitudes enviadas y recibidas en un solo lugar</div>
+    </div>}
+    {step === 2 && <div className="tutorial-list-demo">
+      <div className="tutorial-list-heading"><ListVideo size={16} /><strong>Nueva lista</strong><span><Users size={12} /> conjunta</span></div>
+      <div className="tutorial-form-row"><small>Nombre</small><div className="tutorial-fake-input">Maratón del viernes</div></div>
+      <div className="tutorial-form-row two"><div><small>Tipo</small><div className="tutorial-fake-input">Conjunta</div></div><div><small>Amigo</small><div className="tutorial-fake-input">Sam</div></div></div>
+      <div className="tutorial-fake-toggle"><span>Lista pública</span><i /></div>
+    </div>}
+    {step === 3 && <div className="tutorial-search-demo">
+      <div className="tutorial-search-input"><Link2 size={14} /> https://tu-enlace-multimedia</div>
+      <div className="tutorial-add-options"><span><Users size={13} /> Guardar en <b>Maratón del viernes</b></span><span className="tutorial-add-button"><Plus size={13} /> Añadir</span></div>
+      <div className="tutorial-poster-row"><span>VIDEO</span><span>AUDIO</span><span>WEB</span></div>
+      <div className="tutorial-demo-caption"><Check size={13} /> Enlace detectado y guardado</div>
+    </div>}
+    {step === 4 && <div className="tutorial-list-demo">
+      <div className="tutorial-list-heading"><Bookmark size={16} /><strong>Maratón del viernes</strong><span><Globe size={12} /> Pública</span></div>
+      <div className="tutorial-list-row"><span className="tutorial-thumb" /><span><b>La próxima película</b><small>Por ver · reproductor externo</small></span><span className="tutorial-row-actions"><ArrowUp size={13} /><ArrowDown size={13} /><Check size={13} /><Trash2 size={13} /></span></div>
+      <div className="tutorial-list-row"><span className="tutorial-thumb thumb-two" /><span><b>Videos para el finde</b><small>Por ver · video directo</small></span><span className="tutorial-row-actions"><ArrowUp size={13} /><ArrowDown size={13} /><Check size={13} /><Trash2 size={13} /></span></div>
+      <div className="tutorial-demo-caption"><Check size={13} /> 2 vistos · 2 por ver</div>
+    </div>}
+    {step === 5 && <div className="tutorial-watch-demo">
+      <div className="tutorial-screen"><Film size={33} /><span>REPRODUCIENDO JUNTOS</span><i><Play size={12} fill="currentColor" /></i></div>
+      <div className="tutorial-sync-line"><span /><span>Sincronizado automáticamente</span><span /></div>
+      <div className="tutorial-people"><span>Alex · viendo</span><span>Sam · viendo</span></div>
+      <div className="tutorial-queue-chip"><Clock3 size={12} /> En la cola: 3 videos más</div>
+    </div>}
+    {step === 6 && <div className="tutorial-invite-demo">
+      <div className="tutorial-invite-actions"><span><Copy size={13} /> Compartir enlace</span><span><Users size={13} /> Invitar amigo</span></div>
+      <div className="tutorial-person"><span className="tutorial-person-avatar">S</span><span><b>Sam</b><small>@sam_cine</small></span><em>Invitar</em></div>
+      <div className="tutorial-friend-note"><Check size={13} /> La invitación llega al inicio de tu amigo</div>
+    </div>}
+    {step === 7 && <div className="tutorial-chat-demo">
+      <div className="tutorial-chat-message"><span>Alex</span><b>¡Esta escena es buenísima!</b></div>
+      <div className="tutorial-chat-message mine"><span>Tú</span><b>🍿 totalmente</b></div>
+      <div className="tutorial-reactions">{['❤️', '😂', '😮', '👏', '🍿'].map((emoji) => <span key={emoji}>{emoji}</span>)}</div>
+      <div className="tutorial-chat-actions"><span><MessageCircle size={15} /> Chat</span><span><Mic size={15} /> Voz</span><span><Volume2 size={15} /> Velocidad</span></div>
+    </div>}
+    {step === 8 && <div className="tutorial-exit-demo">
+      <div className="tutorial-exit-option"><strong>Solo salir</strong><small>La sala sigue activa para tu amigo</small></div>
+      <div className="tutorial-exit-option danger"><strong>Terminar sala</strong><small>La función se acaba para todos</small></div>
+      <div className="tutorial-friend-note"><Check size={13} /> Vuelves al inicio con tus salas y tu lista</div>
+    </div>}
   </div>
 }
 
