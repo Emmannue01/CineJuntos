@@ -11,37 +11,38 @@
     },
     "rooms": {
       "$roomId": {
-        ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+        ".read": "auth != null",
+        ".write": "auth != null",
         "members": {
-          ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+          ".read": "auth != null",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid"
           }
         },
         "state": {
-          ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
-          ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+          ".read": "auth != null",
+          ".write": "auth != null",
           ".validate": "newData.hasChildren(['updatedAt', 'updatedBy']) && newData.child('updatedBy').val() === auth.uid && newData.child('updatedAt').isNumber()"
         },
         "chat": {
           "$messageId": {
-            ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
-            ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists() && newData.child('uid').val() === auth.uid && (!data.exists() || data.child('uid').val() === auth.uid)",
+            ".read": "auth != null",
+            ".write": "auth != null && newData.child('uid').val() === auth.uid",
             ".validate": "newData.hasChildren(['uid', 'username', 'avatar', 'text', 'createdAt', 'kind']) && newData.child('text').isString() && newData.child('text').val().length <= 500 && newData.child('kind').val().matches(/^(message|reaction)$/)"
           }
         },
         "voice": {
           "$callerUid": {
-            ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
-            ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()"
+            ".read": "auth != null",
+            ".write": "auth != null"
           }
         },
         "queue": {
-          ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
-          ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()"
+          ".read": "auth != null",
+          ".write": "auth != null"
         },
         "queueUpdatedBy": {
-          ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists() && newData.val() === auth.uid"
+          ".write": "auth != null"
         }
       }
     }
