@@ -21,6 +21,20 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
 
+  // Leer servidores TURN desde variables de entorno
+  const turnServers: RTCIceServer[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ]
+
+  const turnUrl = import.meta.env.VITE_TURN_URL
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME
+  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL
+
+  if (turnUrl && turnUsername && turnCredential) {
+    turnServers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential })
+  }
+
   function closeConnection() {
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
@@ -56,10 +70,7 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       stream.getAudioTracks().forEach((track) => { track.enabled = false })
 
       const connection = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
+        iceServers: turnServers,
         iceCandidatePoolSize: 10,
       })
       connectionRef.current = connection
