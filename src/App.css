@@ -114,7 +114,7 @@
   --card-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
 }
 
-.app-root { min-height: 100vh; background: var(--ink); color: var(--text); }
+.app-root { min-height: 100vh; overflow-x: hidden; background: var(--ink); color: var(--text); }
 .configuration-banner { position: relative; z-index: 30; display: flex; justify-content: center; align-items: center; gap: 9px; padding: 9px 18px; color: var(--accent-text); background: var(--accent); font-size: 12px; }
 .configuration-banner strong { font-weight: 700; }
 .app-frame { min-height: 100vh; display: grid; grid-template-columns: 236px minmax(0, 1fr); background: var(--ink); }

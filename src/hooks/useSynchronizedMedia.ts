@@ -14,8 +14,8 @@ interface Options {
 
 export function useSynchronizedMedia({ roomId, uid, mediaUrl, enabled, onVideoEnded }: Options) {
   const mountRef = useRef<HTMLVideoElement>(null)
-  const ignoreRemoteRef = useRef(false)
   const onEndedRef = useRef(onVideoEnded)
+  const lastAppliedRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -23,13 +23,17 @@ export function useSynchronizedMedia({ roomId, uid, mediaUrl, enabled, onVideoEn
 
   const applyRemoteState = useCallback((state: RoomState) => {
     const video = mountRef.current
-    if (!video || (state.mediaUrl && state.mediaUrl !== mediaUrl)) return
-    ignoreRemoteRef.current = true
+    if (!video) return
+    // Ignorar estados que escribimos nosotros para evitar bucles y peleas entre dispositivos.
+    if (state.updatedBy === uid) return
+    // Ignorar estados antiguos o desordenados.
+    if (state.updatedAt && state.updatedAt <= lastAppliedRef.current) return
+    if (state.mediaUrl && state.mediaUrl !== mediaUrl) return
+    lastAppliedRef.current = state.updatedAt || Date.now()
     if (Math.abs(video.currentTime - (state.currentTime || 0)) > 1.5) video.currentTime = state.currentTime || 0
     if (state.playing && video.paused) void video.play().catch(() => undefined)
     if (!state.playing && !video.paused) video.pause()
-    window.setTimeout(() => { ignoreRemoteRef.current = false }, 350)
-  }, [mediaUrl])
+  }, [mediaUrl, uid])
 
   useEffect(() => {
     if (!enabled) { setReady(false); return }
@@ -42,11 +46,10 @@ export function useSynchronizedMedia({ roomId, uid, mediaUrl, enabled, onVideoEn
     })
     const onLoaded = () => setReady(true)
     const onPlaying = () => {
-      if (ignoreRemoteRef.current) return
       void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: true, currentTime: video.currentTime, playbackRate: video.playbackRate }).catch(console.error)
     }
     const onPause = () => {
-      if (ignoreRemoteRef.current || video.ended) return
+      if (video.ended) return
       void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: false, currentTime: video.currentTime, playbackRate: video.playbackRate }).catch(console.error)
     }
     const onEnded = () => onEndedRef.current()
@@ -80,13 +83,13 @@ export function useSynchronizedMedia({ roomId, uid, mediaUrl, enabled, onVideoEn
     const video = mountRef.current
     if (!video) return
     video.playbackRate = rate
-    void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: !video.paused, currentTime: video.currentTime, playbackRate: rate })
+    void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: !video.paused, currentTime: video.currentTime, playbackRate: rate }).catch(console.error)
   }
   const seek = (seconds: number) => {
     const video = mountRef.current
     if (!video) return
     video.currentTime = seconds
-    void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: !video.paused, currentTime: seconds, playbackRate: video.playbackRate })
+    void writeRoomState(roomId, uid, { videoId: '', mediaUrl, provider: 'direct', playing: !video.paused, currentTime: seconds, playbackRate: video.playbackRate }).catch(console.error)
   }
   const fullscreen = () => { if (mountRef.current?.requestFullscreen) void mountRef.current.requestFullscreen() }
 

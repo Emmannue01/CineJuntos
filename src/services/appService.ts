@@ -1,11 +1,9 @@
-import { httpsCallable } from 'firebase/functions'
 import {
   addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
-  serverTimestamp, setDoc, updateDoc, where, writeBatch, arrayUnion, arrayRemove,
+  runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { onValue, push, ref, remove, set, update } from 'firebase/database'
 import { db } from '../firebase/firestore'
-import { functions } from '../firebase/functions'
 import { rtdb } from '../firebase/database'
 import type { ChatMessage, Room, RoomInvite, RoomQueueEntry, UserProfile, VideoItem, Watchlist } from '../types'
 
@@ -71,8 +69,30 @@ export async function respondFriendRequest(request: FriendRequest, accept: boole
 }
 
 export async function removeFriend(friendUid: string) {
-  const callable = httpsCallable<{ friendUid: string }, void>(functions, 'removeFriend')
-  await callable({ friendUid })
+  const uid = (await import('../firebase/auth')).auth.currentUser?.uid
+  if (!friendUid || friendUid === uid) throw new Error('Amistad no válida.')
+  const friendshipRef = doc(db, `friendships/${[uid, friendUid].sort().join('_')}`)
+  const friendshipSnap = await getDoc(friendshipRef)
+  const friendshipData = friendshipSnap.data()
+  if (!friendshipSnap.exists() || !friendshipData?.memberUids?.includes(uid) || !friendshipData.memberUids.includes(friendUid)) throw new Error('Esta amistad ya no existe.')
+
+  const [myLists, friendLists] = await Promise.all([
+    getDocs(query(collection(db, 'watchlists'), where('ownerUid', '==', uid))),
+    getDocs(query(collection(db, 'watchlists'), where('ownerUid', '==', friendUid))),
+  ])
+  const updates = [...myLists.docs, ...friendLists.docs].filter((list) => list.data().memberUids?.includes(uid) && list.data().memberUids.includes(friendUid))
+  for (let offset = 0; offset < updates.length; offset += 450) {
+    const batch = writeBatch(db)
+    updates.slice(offset, offset + 450).forEach((list) => {
+      const data = list.data()
+      batch.update(list.ref, { memberUids: data.memberUids.filter((memberUid: string) => memberUid === data.ownerUid), shared: false })
+    })
+    await batch.commit()
+  }
+  const batch = writeBatch(db)
+  batch.delete(friendshipRef)
+  if (friendshipData?.requestId) batch.delete(doc(db, `friendRequests/${friendshipData.requestId}`))
+  await batch.commit()
 }
 
 export function subscribeWatchlists(uid: string, callback: (lists: Watchlist[]) => void) {
@@ -111,65 +131,141 @@ export async function reorderVideos(listId: string, videos: VideoItem[]) {
   await batch.commit()
 }
 
-export async function createRoom(video: Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>, inviteUid?: string, queue: RoomQueueEntry[] = [], watchlistId?: string, currentItemId?: string) {
-  const roomId = Math.random().toString(36).substring(2, 10).toUpperCase()
+type RoomVideo = Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>
 
-  await setDoc(doc(db, 'rooms', roomId), {
-    ...video,
-    memberUids: inviteUid ? [inviteUid] : [],
-    invitedUids: inviteUid ? [inviteUid] : [],
-    queue,
-    watchlistId,
-    currentItemId,
-    status: 'active',
+export async function createRoom(video: RoomVideo, inviteUid?: string, queue: RoomQueueEntry[] = [], watchlistId?: string, currentItemId?: string) {
+  const roomId = Math.random().toString(36).substring(2, 10).toUpperCase()
+  const uid = (await import('../firebase/auth')).auth.currentUser?.uid
+  if (!uid) throw new Error('No hay sesión activa.')
+
+  const room = {
+    ownerUid: uid,
+    memberUids: [uid],
+    invitedUids: inviteUid && inviteUid !== uid ? [inviteUid] : [],
+    videoId: video.provider === 'youtube' ? String(video.videoId).slice(0, 32) : '',
+    mediaUrl: video.provider === 'youtube' ? null : String(video.mediaUrl).slice(0, 1000),
+    provider: video.provider,
+    title: String(video.title).slice(0, 300),
+    thumbnail: String(video.thumbnail).slice(0, 1000),
+    queue: queue.map((item) => ({ videoId: item.provider === 'youtube' ? String(item.videoId).slice(0, 32) : '', mediaUrl: item.provider === 'youtube' ? null : String(item.mediaUrl).slice(0, 1000), provider: item.provider, title: String(item.title).slice(0, 300), thumbnail: String(item.thumbnail || '').slice(0, 1000), itemId: String(item.itemId).slice(0, 128), listId: String(item.listId).slice(0, 128) })),
+    watchlistId: watchlistId ? String(watchlistId).slice(0, 128) : null,
+    currentItemId: currentItemId ? String(currentItemId).slice(0, 128) : null,
     createdAt: Date.now(),
-  })
+    status: 'active',
+  }
+
+  await setDoc(doc(db, 'rooms', roomId), room)
+  await set(ref(rtdb, `rooms/${roomId}/members/${uid}`), true)
+  await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: uid })
   return roomId
 }
 
 export async function advanceRoom(roomId: string, currentItemId?: string) {
   const roomRef = doc(db, 'rooms', roomId)
-  const roomSnap = await getDoc(roomRef)
-  if (!roomSnap.exists()) throw new Error('La sala no existe.')
+  const uid = (await import('../firebase/auth')).auth.currentUser?.uid
+  if (!uid) throw new Error('No hay sesión activa.')
 
-  const room = roomSnap.data() as Room
-  const queue = room.queue || []
-  const currentIndex = queue.findIndex(item => item.itemId === currentItemId)
-
-  if (currentIndex === -1 || currentIndex === queue.length - 1) {
-    await updateDoc(roomRef, { status: 'ended', endedAt: Date.now() })
-    return { ended: true }
-  }
-
-  const nextItem = queue[currentIndex + 1]
-  await updateDoc(roomRef, {
-    currentItemId: nextItem.itemId,
-    videoId: nextItem.videoId,
-    mediaUrl: nextItem.mediaUrl,
-    provider: nextItem.provider,
-    title: nextItem.title,
+  const result = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(roomRef)
+    if (!snapshot.exists()) throw new Error('La sala ya no existe.')
+    const room = snapshot.data() as Room
+    if (!(room.memberUids ?? []).includes(uid)) throw new Error('No perteneces a esta sala.')
+    if (currentItemId && room.currentItemId !== currentItemId) return { changed: false, room }
+    const next = (room.queue ?? [])[0]
+    if (!next) {
+      transaction.update(roomRef, { status: 'ended', queue: [], endedAt: Date.now() })
+      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+      await set(ref(rtdb, `rooms/${roomId}/queue`), room.queue || [])
+      return { changed: true, room: { ...room, status: 'ended' } }
+    }
+    const nextRef = doc(db, `watchlists/${next.listId}/videos/${next.itemId}`)
+    const [currentVideo, nextVideo] = await Promise.all([
+      room.watchlistId && room.currentItemId ? transaction.get(doc(db, `watchlists/${room.watchlistId}/videos/${room.currentItemId}`)) : Promise.resolve(null),
+      transaction.get(nextRef),
+    ])
+    if (room.watchlistId && room.currentItemId && currentVideo?.exists()) transaction.update(currentVideo.ref, { status: 'watched' })
+    if (next && nextRef && nextVideo?.exists()) {
+      transaction.update(roomRef, {
+        videoId: next.videoId,
+        mediaUrl: next.mediaUrl || null,
+        provider: mediaProvider(next),
+        title: next.title,
+        thumbnail: next.thumbnail,
+        currentItemId: next.itemId,
+        watchlistId: next.listId,
+        queue: (room.queue ?? []).slice(1),
+      })
+      await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: next.videoId, mediaUrl: next.mediaUrl || null, provider: mediaProvider(next), playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+      await set(ref(rtdb, `rooms/${roomId}/queue`), (room.queue ?? []).slice(1))
+      return { changed: true, room: { ...room, ...next, provider: mediaProvider(next), currentItemId: next.itemId, watchlistId: next.listId, queue: (room.queue ?? []).slice(1) } }
+    }
+    transaction.update(roomRef, { status: 'ended', queue: [], endedAt: Date.now() })
+    await set(ref(rtdb, `rooms/${roomId}/state`), { videoId: room.videoId, mediaUrl: room.mediaUrl, provider: room.provider, playing: false, currentTime: 0, playbackRate: 1, updatedAt: Date.now(), updatedBy: 'server' })
+    await set(ref(rtdb, `rooms/${roomId}/queue`), room.queue || [])
+    return { changed: true, room: { ...room, status: 'ended' } }
   })
-  return { ended: false }
+  return { ended: result.room.status === 'ended' }
 }
 
 export async function inviteToRoom(roomId: string, toUid: string) {
-  await updateDoc(doc(db, 'rooms', roomId), {
-    invitedUids: arrayUnion(toUid),
+  const uid = (await import('../firebase/auth')).auth.currentUser?.uid
+  if (!uid || !roomId || !toUid || uid === toUid) throw new Error('Invitación no válida.')
+
+  const roomRef = doc(db, 'rooms', roomId)
+  const inviteRef = doc(db, `roomInvites/${roomId}_${toUid}`)
+  const roomSnap = await getDoc(roomRef)
+  if (!roomSnap.exists()) throw new Error('La sala no existe.')
+  const room = roomSnap.data() as Room
+  if (room.status !== 'active') throw new Error('La sala ya no está activa.')
+  if (!room.memberUids.includes(uid)) throw new Error('No perteneces a esta sala.')
+  if ((room.memberUids ?? []).length + (room.invitedUids ?? []).filter((id) => id !== toUid).length >= 2) throw new Error('La sala ya tiene dos participantes o una invitación pendiente.')
+
+  const profileSnap = await getDoc(doc(db, 'users', uid))
+  const profile = profileSnap.exists() ? profileSnap.data() as UserProfile : null
+
+  await updateDoc(roomRef, { invitedUids: arrayUnion(toUid) })
+  await setDoc(inviteRef, {
+    roomId,
+    fromUid: uid,
+    toUid,
+    fromName: profile?.displayName || profile?.username || 'Tu amigo',
+    roomTitle: room.title,
+    createdAt: Date.now(),
+    status: 'pending',
   })
 }
 
 export async function joinRoom(roomId: string, uid: string) {
   const roomRef = doc(db, 'rooms', roomId)
+  const roomSnap = await getDoc(roomRef)
+  if (!roomSnap.exists() || roomSnap.data().status !== 'active') throw new Error('La sala no existe o ya no está activa.')
+  const room = roomSnap.data() as Room
+  if (!room.memberUids.includes(uid) && !room.invitedUids.includes(uid)) throw new Error('No tienes acceso a esta sala.')
+
   await updateDoc(roomRef, {
     memberUids: arrayUnion(uid),
     invitedUids: arrayRemove(uid),
   })
+  await set(ref(rtdb, `rooms/${roomId}/members/${uid}`), true)
 }
 
 export async function leaveRoom(roomId: string, uid: string) {
-  await updateDoc(doc(db, 'rooms', roomId), {
-    memberUids: arrayRemove(uid),
+  const roomRef = doc(db, 'rooms', roomId)
+  const roomSnap = await getDoc(roomRef)
+  if (!roomSnap.exists()) return
+  const room = roomSnap.data() as Room
+  if (!room.memberUids.includes(uid)) return
+
+  const memberUids = room.memberUids.filter((id) => id !== uid)
+  const ended = room.ownerUid === uid || memberUids.length === 0
+
+  await updateDoc(roomRef, {
+    memberUids,
+    status: ended ? 'ended' : room.status,
+    endedAt: ended ? Date.now() : null,
   })
+  await remove(ref(rtdb, `rooms/${roomId}/members/${uid}`))
+  if (ended) await remove(ref(rtdb, `rooms/${roomId}`))
 }
 
 export function subscribeRoom(roomId: string, callback: (room: Room | null) => void) {
@@ -189,8 +285,28 @@ export function subscribeInvites(uid: string, callback: (invites: RoomInvite[]) 
 }
 
 export async function respondRoomInvite(inviteId: string, accept: boolean) {
-  const callable = httpsCallable<{ inviteId: string; accept: boolean }, void>(functions, 'respondRoomInvite')
-  await callable({ inviteId, accept })
+  const uid = (await import('../firebase/auth')).auth.currentUser?.uid
+  if (!uid || !inviteId || typeof accept !== 'boolean') throw new Error('Respuesta no válida.')
+
+  const inviteRef = doc(db, `roomInvites/${inviteId}`)
+  const roomRef = doc(db, 'rooms', inviteId.split('_')[0])
+
+  await runTransaction(db, async (transaction) => {
+    const [inviteSnap, roomSnap] = await Promise.all([transaction.get(inviteRef), transaction.get(roomRef)])
+    if (!inviteSnap.exists() || inviteSnap.data().status !== 'pending' || inviteSnap.data().toUid !== uid) throw new Error('La invitación ya no está disponible.')
+    const roomDoc = roomSnap
+    if (!roomDoc.exists() || roomDoc.data().status !== 'active') throw new Error('La sala ya terminó.')
+    const roomData = roomDoc.data() as Room
+    if (accept) {
+      if (!roomData.invitedUids.includes(uid) || roomData.memberUids.length >= 2) throw new Error('La sala ya está completa.')
+      transaction.update(roomRef, { memberUids: [...roomData.memberUids, uid], invitedUids: roomData.invitedUids.filter((id) => id !== uid) })
+    } else {
+      transaction.update(roomRef, { invitedUids: roomData.invitedUids.filter((id) => id !== uid) })
+    }
+    transaction.update(inviteRef, { status: accept ? 'accepted' : 'declined', respondedAt: Date.now() })
+  })
+
+  if (accept) await set(ref(rtdb, `rooms/${inviteId.split('_')[0]}/members/${uid}`), true)
 }
 
 export function subscribeRoomState(roomId: string, callback: (state: Record<string, unknown> | null) => void) {
@@ -233,4 +349,8 @@ export async function updateRoomVideo(roomId: string, uid: string, video: Pick<V
 
 export async function markRoomEnded(roomId: string) {
   await updateDoc(doc(db, 'rooms', roomId), { status: 'ended', endedAt: serverTimestamp() })
+}
+
+function mediaProvider(item: { provider?: string }): string {
+  return item.provider || 'youtube'
 }

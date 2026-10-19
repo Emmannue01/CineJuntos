@@ -57,8 +57,8 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
   const playerRef = useRef<YouTubePlayer | null>(null)
   const heartbeatRef = useRef<number | null>(null)
   const remoteStateRef = useRef<RoomState | null>(null)
-  const ignoreUntilRef = useRef(0)
   const latestVideoRef = useRef(videoId)
+  const lastAppliedRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -70,7 +70,11 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
     if (state.provider && state.provider !== 'youtube') return
     const player = playerRef.current
     if (!player) return
-    ignoreUntilRef.current = Date.now() + 1600
+    // Ignorar estados que escribimos nosotros para evitar bucles entre dispositivos.
+    if (state.updatedBy === uid) return
+    // Ignorar estados antiguos o desordenados.
+    if (state.updatedAt && state.updatedAt <= lastAppliedRef.current) return
+    lastAppliedRef.current = state.updatedAt || Date.now()
     if (state.videoId && state.videoId !== latestVideoRef.current) {
       latestVideoRef.current = state.videoId
       player.loadVideoById(state.videoId, Math.max(state.currentTime || 0, 0))
@@ -81,10 +85,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
       if (state.playing && player.getPlayerState() !== window.YT?.PlayerState.PLAYING) player.playVideo()
       if (!state.playing && player.getPlayerState() === window.YT?.PlayerState.PLAYING) player.pauseVideo()
     }
-    window.setTimeout(() => {
-      if (Date.now() >= ignoreUntilRef.current) ignoreUntilRef.current = 0
-    }, 1650)
-  }, [])
+  }, [uid])
 
   useEffect(() => {
     let cancelled = false
@@ -103,7 +104,6 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
             if (remoteStateRef.current) applyRemoteState(remoteStateRef.current)
           },
           onStateChange: (event: { data: number }) => {
-            if (Date.now() < ignoreUntilRef.current) return
             const player = playerRef.current
             if (!player || !window.YT) return
             if (event.data === window.YT.PlayerState.ENDED) {
@@ -140,7 +140,6 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
             }
           },
           onPlaybackRateChange: (event: { data: number }) => {
-            if (Date.now() < ignoreUntilRef.current) return
             const isPlaying = playerRef.current?.getPlayerState() === window.YT?.PlayerState.PLAYING
             void writeRoomState(roomId, uid, { videoId: latestVideoRef.current, playing: isPlaying, currentTime: playerRef.current?.getCurrentTime() || 0, playbackRate: event.data }).catch(console.error)
           },
@@ -183,7 +182,7 @@ export function useSynchronizedPlayer({ roomId, uid, videoId, enabled = true, on
   const seek = (seconds: number) => {
     playerRef.current?.seekTo(seconds, true)
     const isPlaying = playerRef.current?.getPlayerState() === window.YT?.PlayerState.PLAYING
-    void writeRoomState(roomId, uid, { videoId: latestVideoRef.current, provider: 'youtube', playing: isPlaying, currentTime: seconds, playbackRate: playerRef.current?.getPlaybackRate() || 1 })
+    void writeRoomState(roomId, uid, { videoId: latestVideoRef.current, provider: 'youtube', playing: isPlaying, currentTime: seconds, playbackRate: playerRef.current?.getPlaybackRate() || 1 }).catch(console.error)
   }
   const fullscreen = () => {
     const frame = mountRef.current?.querySelector('iframe')
