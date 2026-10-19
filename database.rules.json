@@ -32,9 +32,31 @@
           }
         },
         "voice": {
-          "$callerUid": {
-            ".read": "auth != null",
-            ".write": "auth != null"
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "offers": {
+            "$uid": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          },
+          "answers": {
+            "$uid": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          },
+          "candidates": {
+            "$uid": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          },
+          "closed": {
+            "$uid": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
           }
         },
         "queue": {

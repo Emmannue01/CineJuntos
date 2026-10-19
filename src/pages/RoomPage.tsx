@@ -60,13 +60,8 @@ function RoomExperience(props: {
   room: Room; uid: string; username: string; avatar: string; state: RoomState | null; messages: ChatMessage[]; friends: UserProfile[]; error: string; setError: (value: string) => void; busy: boolean; setBusy: (value: boolean) => void; message: string; setMessage: (value: string) => void; copied: boolean; setCopied: (value: boolean) => void
 }) {
   const { room, uid, username, avatar, state, messages, friends, error, setError, busy, setBusy, message, setMessage, copied, setCopied } = props
-  const partnerUidRef = useRef<string | null>(null)
-  const partnerUidCalculated = room.memberUids.find((member) => member !== uid) || null
-  if (partnerUidCalculated && partnerUidCalculated !== partnerUidRef.current) {
-    partnerUidRef.current = partnerUidCalculated
-  }
-  const partnerUid = partnerUidRef.current || ''
-  const voice = useRoomVoice(room.id, uid, partnerUid)
+  const partnerUid = room.memberUids.find((member) => member !== uid) || ''
+  const voice = useRoomVoice(room.id, uid)
   const [playError, setPlayError] = useState('')
   const [speed, setSpeed] = useState('1')
   const messageEndRef = useRef<HTMLDivElement>(null)
