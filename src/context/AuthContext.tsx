@@ -190,46 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     loginWithGoogle: async () => {
       const authSdk = authSdkRef.current || await loadAuth()
-      const { auth, googleProvider, signInWithPopup, signInWithRedirect } = authSdk
+      const { auth, googleProvider, signInWithRedirect } = authSdk
       setAuthError('')
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-
-      try {
-        // En móvil usar signInWithRedirect directamente (más compatible que popup en iOS Safari y Android Chrome)
-        if (isMobile) {
-          await signInWithRedirect(auth, googleProvider)
-          return 'redirect' as const
-        }
-
-        // En escritorio usar popup primero
-        const credential = await signInWithPopup(auth, googleProvider)
-        setUser(credential.user)
-        setLoading(false)
-        setAuthError('')
-        try {
-          const currentProfile = await ensureProfile(credential.user)
-          setProfile(currentProfile)
-        } catch (error) {
-          console.error('No se pudo asegurar el perfil tras login con Google', error)
-        }
-        return 'popup' as const
-      } catch (error) {
-        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
-
-        // Si el usuario cerró la ventana emergente, no forzar redirección
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-          throw error
-        }
-
-        // Si el navegador bloqueó completamente los popups, recurrir a redirect como alternativa
-        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(code)) {
-          await signInWithRedirect(auth, googleProvider)
-          return 'redirect' as const
-        }
-
-        throw error
-      }
+      // Usar signInWithRedirect en toda la app (móvil y escritorio)
+      await signInWithRedirect(auth, googleProvider)
+      return 'redirect' as const
     },
     logout: async () => {
       const { auth, signOut } = await loadAuth()
