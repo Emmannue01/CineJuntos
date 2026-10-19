@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, Film, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2 } from 'lucide-react'
+import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, Film, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2, X } from 'lucide-react'
 import { onValue, ref } from 'firebase/database'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/AppShell'
@@ -104,6 +104,7 @@ function RoomExperience(props: {
   const inviteOptions = friends.filter((friend) => friend.uid !== partnerUid)
   const [listVideos, setListVideos] = useState<VideoItem[]>([])
   const [changeVideoOpen, setChangeVideoOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   useEffect(() => {
     if (!room.watchlistId) { setListVideos([]); return }
@@ -136,14 +137,12 @@ function RoomExperience(props: {
     await sendText('message', message)
   }
 
-  async function invite(event: ChangeEvent<HTMLSelectElement>) {
-    const select = event.currentTarget
-    const target = select.value
-    if (!target) return
+  async function inviteFriend(targetUid: string) {
+    setInviteOpen(false)
     setBusy(true); setPlayError('')
-    try { await inviteToRoom(room.id, target) }
+    try { await inviteToRoom(room.id, targetUid) }
     catch (cause) { setPlayError(readableError(cause)) }
-    finally { setBusy(false); select.value = '' }
+    finally { setBusy(false) }
   }
 
   async function exitRoom() {
@@ -198,7 +197,31 @@ function RoomExperience(props: {
         <form className="chat-compose" onSubmit={(event) => void send(event)}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe algo..." maxLength={500} disabled={ended} /><button aria-label="Enviar mensaje" disabled={!message.trim() || ended}><Send size={16} /></button></form>
       </aside>
     </div>
-    <div className="room-bottom-actions"><label className="invite-friend"><Users size={15} /><span>Invitar a un amigo</span><select onChange={(event) => void invite(event)} disabled={busy || room.memberUids.length + room.invitedUids.length >= 2} defaultValue=""><option value="">Elegir amigo…</option>{inviteOptions.map((friend) => <option key={friend.uid} value={friend.uid}>{friend.displayName}</option>)}</select></label><button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button></div>
+    <div className="room-bottom-actions">
+      <div className="invite-section">
+        {pendingInviteUid ? (
+          <div className="invite-pending"><span className="live-dot" /><span>Esperando a <strong>{friends.find((f) => f.uid === pendingInviteUid)?.displayName || 'tu amigo'}</strong>…</span></div>
+        ) : (
+          <div className="invite-actions">
+            <button className="invite-button" onClick={() => setInviteOpen(true)} disabled={busy || room.memberUids.length + room.invitedUids.length >= 2}><Users size={15} /> Invitar amigo</button>
+            {inviteOptions.length === 0 && <span className="invite-empty">Sin amigos para invitar</span>}
+          </div>
+        )}
+        {inviteOpen && (
+          <div className="invite-dropdown">
+            <div className="invite-dropdown-header"><span className="section-kicker">INVITAR A UN AMIGO</span><button className="invite-dropdown-close" onClick={() => setInviteOpen(false)}><X size={18} /></button></div>
+            {inviteOptions.length === 0 ? (
+              <div className="invite-empty-state"><span className="empty-icon"><Users size={20} /></span><div><strong>No tienes amigos</strong><small>Agrega amigos desde la sección "Amigos" para invitarlos a una sala.</small></div></div>
+            ) : (
+              <div className="invite-list">{inviteOptions.map((friend) => (
+                <button key={friend.uid} className="invite-item" onClick={(event) => { event.stopPropagation(); void inviteFriend(friend.uid) }}><div className="invite-item-avatar"><StatusAvatar uid={friend.uid} name={friend.displayName} photoURL={friend.avatar} /></div><div className="invite-item-info"><strong>{friend.displayName}</strong><small>@{friend.username}</small></div><span className="invite-item-action">Invitar</span></button>
+              ))}</div>
+            )}
+          </div>
+        )}
+      </div>
+      <button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Terminar mi sesión</button>
+    </div>
     <button className="chat-mobile-toggle" onClick={() => setChatOpen(!chatOpen)}><MessageCircle size={17} /> {chatOpen ? 'Ocultar chat' : `Abrir chat · ${messages.length}`}</button>
     {changeVideoOpen && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangeVideoOpen(false) }}>

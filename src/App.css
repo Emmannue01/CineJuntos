@@ -918,3 +918,39 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+
+/* ── Invitación de amigos en sala ── */
+.invite-section { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.invite-pending { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; }
+.invite-pending .live-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.invite-actions { display: flex; align-items: center; gap: 7px; }
+.invite-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--panel); font-size: 9px; cursor: pointer; transition: all .16s; }
+.invite-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.invite-button:disabled { opacity: .5; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
+.invite-empty { color: var(--subtle); font-size: 9px; }
+
+.invite-dropdown { position: absolute; bottom: 0; left: 0; right: 0; width: min(360px, 100%); margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); box-shadow: var(--card-shadow); z-index: 30; animation: preview-appear .2s ease both; }
+.invite-dropdown-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel-raised); }
+.invite-dropdown-close { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 4px; color: var(--muted); background: transparent; cursor: pointer; }
+.invite-dropdown-close:hover { color: var(--red); background: var(--red-soft); }
+.invite-list { display: flex; flex-direction: column; }
+.invite-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .14s; }
+.invite-item:last-child { border-bottom: 0; }
+.invite-item:hover { background: var(--panel-hover); }
+.invite-item-avatar { position: relative; display: inline-flex; flex: 0 0 auto; }
+.invite-item-info { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.invite-item-info strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.invite-item-info small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.invite-item-action { color: var(--accent); font-size: 9px; font-weight: 600; }
+.invite-empty-state { display: flex; align-items: center; gap: 10px; padding: 18px 12px; text-align: center; }
+.invite-empty-state .empty-icon { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--panel-raised); }
+.invite-empty-state > div { display: grid; gap: 3px; }
+.invite-empty-state strong { color: var(--text); font-size: 10px; }
+.invite-empty-state small { color: var(--muted); font-size: 9px; }
+
+@media (max-width: 620px) {
+  .invite-section { flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
+  .invite-actions { width: 100%; }
+  .invite-button { width: 100%; justify-content: center; }
+  .invite-dropdown { position: static; width: 100%; margin-top: 0; border-radius: 0; box-shadow: none; border: 0; border-top: 1px solid var(--line); }
+}
