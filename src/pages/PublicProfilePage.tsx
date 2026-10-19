@@ -18,37 +18,50 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     if (!userId) {
+      setError('Usuario no encontrado.')
       setLoading(false)
       return
     }
     setLoading(true)
     setError('')
 
+    let cancelled = false
+
+    // Cargar perfil desde Firestore
     const loadProfile = async () => {
       try {
         const { db } = await import('../firebase/firestore')
         const { doc, getDoc } = await import('firebase/firestore')
         const snap = await getDoc(doc(db, 'users', userId))
-        if (!snap.exists()) {
-          setError('Usuario no encontrado.')
+        if (!cancelled) {
+          if (!snap.exists()) {
+            setError('Usuario no encontrado.')
+            setLoading(false)
+            return
+          }
+          setProfile(snap.data() as UserProfile)
           setLoading(false)
-          return
         }
-        setProfile(snap.data() as UserProfile)
       } catch (cause) {
-        setError(readableError(cause))
-        setLoading(false)
+        if (!cancelled) {
+          setError(readableError(cause))
+          setLoading(false)
+        }
       }
     }
 
+    // Cargar listas públicas
     const stopLists = subscribePublicWatchlists(userId, (lists) => {
-      setPublicLists(lists)
+      if (!cancelled) {
+        setPublicLists(lists)
+      }
     })
 
     loadProfile()
+
     return () => {
+      cancelled = true
       stopLists()
-      setLoading(false)
     }
   }, [userId])
 
