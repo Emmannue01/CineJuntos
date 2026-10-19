@@ -18,7 +18,7 @@ export function useRoomVoice(roomId: string, uid: string) {
 
   async function start() {
     if (!dailyApiKey) {
-      setError('Configura VITE_DAILY_API_KEY en tu archivo .env')
+      setError('Daily.co no configurado. Agrega VITE_DAILY_API_KEY en Vercel.')
       setStatus('error')
       return
     }
@@ -33,7 +33,7 @@ export function useRoomVoice(roomId: string, uid: string) {
 
       const DailyCall = (window as any).DailyCall
       if (!DailyCall) {
-        throw new Error('No se pudo cargar Daily.co SDK')
+        throw new Error('Daily.co SDK no se cargó correctamente')
       }
 
       // Crear una sala única por roomId de CineJuntos
@@ -83,11 +83,7 @@ export function useRoomVoice(roomId: string, uid: string) {
   function toggleMute() {
     const call = dailyCallRef.current
     if (!call) return
-
-    // Daily.co no expone toggleMute directo en todas las versiones,
-    // pero se puede usar el método local participant
     try {
-      // Forzar recarga del estado de mute
       call.leave()
       void start()
     } catch { /* ignorar */ }
@@ -109,16 +105,30 @@ export function useRoomVoice(roomId: string, uid: string) {
     void start()
   }
 
-  // Cargar script de Daily.co
+  // Cargar script de Daily.co con timeout
   async function loadDailyScript(): Promise<void> {
     if ((window as any).DailyCall) return
 
     return new Promise((resolve, reject) => {
       const script = document.createElement('script')
-      script.src = 'https://unpkg.com/@daily-co/daily-js'
+      script.src = 'https://unpkg.com/@daily-co/daily-js@0.28.0/dist/daily-js.min.js'
       script.async = true
-      script.onload = () => resolve()
-      script.onerror = () => reject(new Error('No se pudo cargar Daily.co SDK'))
+      script.defer = true
+
+      const timeout = setTimeout(() => {
+        script.remove()
+        reject(new Error('Tiempo de espera agotado cargando Daily.co SDK'))
+      }, 15000)
+
+      script.onload = () => {
+        clearTimeout(timeout)
+        resolve()
+      }
+      script.onerror = () => {
+        clearTimeout(timeout)
+        script.remove()
+        reject(new Error('No se pudo cargar Daily.co SDK'))
+      }
       document.head.appendChild(script)
     })
   }
