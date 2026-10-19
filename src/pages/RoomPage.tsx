@@ -195,7 +195,7 @@ function RoomExperience(props: {
         <div className="voice-controls">
           <div className={`voice-status voice-${voice.status}`}>
             <span className="live-dot" />
-            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando a la sala de voz…' : 'Chat de voz'}
+            {voice.error ? voice.error : voice.status === 'connected' ? 'Voz conectada (micrófono apagado)' : voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'waiting' ? 'Conectando voz (reintentando automáticamente…)' : 'Chat de voz'}
           </div>
           {voice.status === 'connected' && (
             <div className="voice-actions">
@@ -207,13 +207,13 @@ function RoomExperience(props: {
               </button>
             </div>
           )}
-          {voice.status === 'error' && (
-            <button className="voice-action" onClick={() => voice.retry()} title="Reintentar conexión de voz">
-              <Mic size={18} />
+          {(voice.status === 'idle' || voice.status === 'error') && (
+            <button className="voice-action" onClick={() => voice.start()} title={voice.status === 'error' ? 'Reintentar conexión de voz' : 'Iniciar chat de voz'}>
+              {voice.status === 'error' ? <Mic size={18} /> : <Mic size={18} />}
             </button>
           )}
           <div className="voice-hint" style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
-            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? 'Cualquier persona puede unirse a esta sala de voz' : voice.status === 'error' ? 'Intenta de nuevo' : ''}
+            {voice.status === 'connecting' ? 'Conectando a la sala de voz…' : voice.status === 'connected' ? 'Cualquier persona puede unirse a esta sala de voz' : voice.status === 'error' ? 'Haz clic en el micrófono para iniciar' : ''}
           </div>
           <audio ref={remoteAudioRef} autoPlay />
         </div>
