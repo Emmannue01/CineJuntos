@@ -33,7 +33,7 @@
         "voice": {
           "$callerUid": {
             ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
-            ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).val() === true && root.child('rooms').child($roomId).child('members').child($callerUid).val() === true"
+            ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()"
           }
         },
         "queue": {

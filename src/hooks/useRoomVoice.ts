@@ -15,6 +15,9 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
   const stopsRef = useRef<Array<() => void>>([])
   const remoteDescriptionReadyRef = useRef(false)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
+  const initRef = useRef(false)
+
+  // Calcular quién inicia la señalización (el UID menor alfabéticamente)
   const callerUid = uid.localeCompare(peerUid) < 0 ? uid : peerUid
   const signalPath = `rooms/${roomId}/voice/${callerUid}`
 
@@ -31,22 +34,47 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
     setRemoteStream(null)
     setMuted(false)
     setStatus('idle')
+    initRef.current = false
+  }
+
+  async function cleanupSignalization() {
+    try {
+      await remove(ref(rtdb, `${signalPath}/offer`))
+      await remove(ref(rtdb, `${signalPath}/answer`))
+      await remove(ref(rtdb, `${signalPath}/candidates/${uid}`))
+      await remove(ref(rtdb, `${signalPath}/candidates/${peerUid}`))
+      await remove(ref(rtdb, `${signalPath}/closed/${uid}`))
+    } catch { /* ignorar errores de limpieza */ }
   }
 
   async function start() {
-    if (!peerUid || connectionRef.current) return
+    if (!peerUid || connectionRef.current || initRef.current) return
+    initRef.current = true
     setError('')
     setStatus('connecting')
     try {
+      // Limpiar señalización antigua por si queda basura de una sesión previa
+      await cleanupSignalization()
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+      const connection = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+        ],
+      })
       connectionRef.current = connection
       setActive(true)
       connection.ontrack = (event) => setRemoteStream(event.streams[0] || null)
       connection.onconnectionstatechange = () => {
         if (connection.connectionState === 'connected') setStatus('connected')
-        else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') setStatus('waiting')
+        else if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
+          setStatus('waiting')
+        }
       }
       connection.onicecandidate = (event) => {
         if (event.candidate) void push(ref(rtdb, `${signalPath}/candidates/${uid}`), event.candidate.toJSON())
@@ -116,6 +144,17 @@ export function useRoomVoice(roomId: string, uid: string, peerUid: string) {
       await onDisconnect(ref(rtdb, `${signalPath}/closed/${uid}`)).cancel()
     } catch { /* The local microphone is already stopped. */ }
   }
+
+  // Reiniciar cuando cambie el compañero de sala
+  useEffect(() => {
+    if (!peerUid) return
+    initRef.current = false
+    closeConnection()
+    void start()
+    return () => {
+      closeConnection()
+    }
+  }, [peerUid, roomId, uid])
 
   useEffect(() => () => {
     stopsRef.current.forEach((stopListener) => stopListener())
