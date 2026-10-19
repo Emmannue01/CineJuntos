@@ -972,8 +972,17 @@
 .public-lists-section .video-item { cursor: default; }
 .public-lists-section .video-item:hover { background: transparent; }
 
-.profile-link { cursor: pointer; }
+.profile-link { cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
 .profile-link:active { opacity: 0.9; }
+
+/* Asegurar que los botones dentro de person-row no naveguen al hacer clic */
+.person-row .person-copy { flex: 1; min-width: 0; gap: 3px; }
+.person-copy strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.person-copy small { color: var(--muted); font-size: 9px; }
+
+/* Asegurar que los íconos dentro de person-row no sean afectados por el link */
+.person-row .person-copy strong { color: var(--text); }
+.person-row .person-copy small { color: var(--muted); }
 
 /* Perfil del usuario propio mejorado */
 .profile-page .profile-layout { margin-top: 20px; }
