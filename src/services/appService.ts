@@ -213,12 +213,12 @@ export async function createRoom(video: RoomVideo, inviteUid?: string, queue: Ro
     ownerUid: uid,
     memberUids: [uid],
     invitedUids: inviteUid && inviteUid !== uid ? [inviteUid] : [],
-    videoId: video.provider === 'youtube' ? String(video.videoId).slice(0, 32) : '',
-    mediaUrl: video.provider === 'youtube' ? null : String(video.mediaUrl).slice(0, 1000),
-    provider: video.provider,
-    title: String(video.title).slice(0, 300),
-    thumbnail: String(video.thumbnail).slice(0, 1000),
-    queue: queue.map((item) => ({ videoId: item.provider === 'youtube' ? String(item.videoId).slice(0, 32) : '', mediaUrl: item.provider === 'youtube' ? null : String(item.mediaUrl).slice(0, 1000), provider: item.provider, title: String(item.title).slice(0, 300), thumbnail: String(item.thumbnail || '').slice(0, 1000), itemId: String(item.itemId).slice(0, 128), listId: String(item.listId).slice(0, 128) })),
+    videoId: video.provider === 'youtube' ? String(video.videoId ?? '').slice(0, 32) : '',
+    mediaUrl: video.provider === 'youtube' ? null : String(video.mediaUrl ?? '').slice(0, 1000),
+    provider: video.provider || 'embed',
+    title: String(video.title ?? '').slice(0, 300),
+    thumbnail: String(video.thumbnail ?? '').slice(0, 1000),
+    queue: queue.map((item) => ({ videoId: item.provider === 'youtube' ? String(item.videoId ?? '').slice(0, 32) : '', mediaUrl: item.provider === 'youtube' ? null : String(item.mediaUrl ?? '').slice(0, 1000), provider: item.provider || 'embed', title: String(item.title ?? '').slice(0, 300), thumbnail: String(item.thumbnail || '').slice(0, 1000), itemId: String(item.itemId ?? '').slice(0, 128), listId: String(item.listId ?? '').slice(0, 128) })),
     watchlistId: watchlistId ? String(watchlistId).slice(0, 128) : null,
     currentItemId: currentItemId ? String(currentItemId).slice(0, 128) : null,
     createdAt: Date.now(),
@@ -410,9 +410,9 @@ export async function updateRoomQueue(roomId: string, uid: string, queue: VideoI
 
 export async function updateRoomVideo(roomId: string, uid: string, video: Pick<VideoItem, 'videoId' | 'mediaUrl' | 'provider' | 'title' | 'thumbnail'>) {
   await writeRoomState(roomId, uid, {
-    videoId: video.videoId,
-    mediaUrl: video.mediaUrl,
-    provider: video.provider,
+    videoId: video.videoId ?? '',
+    mediaUrl: video.mediaUrl ?? null,
+    provider: video.provider || 'embed',
     playing: true,
     currentTime: 0,
   })
