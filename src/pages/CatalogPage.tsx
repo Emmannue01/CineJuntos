@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Film, Plus, LoaderCircle, Bookmark } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -11,28 +11,37 @@ import type { Watchlist } from '../types'
 export default function CatalogPage() {
   const { user } = useAuth()
   const [lists, setLists] = useState<Watchlist[]>([])
-  const [selectedId, setSelectedId] = useState('')
+
   const [busyId, setBusyId] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [detailItem, setDetailItem] = useState<typeof catalog[number] | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [addTargetUrl, setAddTargetUrl] = useState<string | null>(null)
+
+  const filteredCatalog = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return catalog
+    return catalog.filter((item) =>
+      item.title.toLowerCase().includes(term) || (item.description || '').toLowerCase().includes(term)
+    )
+  }, [searchTerm])
 
   useEffect(() => {
     if (!user) return
     return subscribeWatchlists(user.uid, (next) => {
       setLists(next)
-      setSelectedId((current) => current && next.some((list) => list.id === current) ? current : next[0]?.id || '')
     })
   }, [user])
 
-  async function addToSelected(itemUrl: string) {
+  async function addToSelected(itemUrl: string, listId: string) {
     if (!user) return
-    if (!selectedId) { setError('Crea o selecciona una lista primero.'); return }
+    if (!listId) { setError('Elige una lista de destino.'); return }
     setBusyId(itemUrl); setError(''); setNotice('')
     try {
       const media = await parseMediaLink(itemUrl)
       if (!media) throw new Error('El enlace del catálogo no es válido.')
-      await addVideo(selectedId, { ...media, addedBy: user.uid, addedAt: Date.now(), status: 'pending', position: 0 })
+      await addVideo(listId, { ...media, addedBy: user.uid, addedAt: Date.now(), status: 'pending', position: 0 })
       setNotice('Añadido a la lista.')
     } catch (cause) { setError(readableError(cause)) }
     finally { setBusyId('') }
@@ -52,19 +61,14 @@ export default function CatalogPage() {
       {notice && <div className="inline-success" role="status">{notice}<button onClick={() => setNotice('')}>Cerrar</button></div>}
 
       <section className="add-video-panel" style={{ marginBottom: 18 }}>
-        <div className="add-video-copy"><span className="section-kicker">LISTA DESTINO</span><strong>Guardar en</strong><small>Selecciona la lista donde se añadirán los elementos.</small></div>
-        <div className="add-video-options" style={{ width: '100%' }}>
-          <label><Bookmark size={14} /><span>Lista</span>
-            <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} disabled={!lists.length}>
-              <option value="" disabled>Selecciona una lista</option>
-              {lists.map((list) => <option value={list.id} key={list.id}>{list.name}{list.shared ? ' · conjunta' : ''}</option>)}
-            </select>
-          </label>
+        <div className="add-video-copy"><span className="section-kicker">BUSCAR</span></div>
+        <div className="search-field" style={{ width: '100%' }}>
+          <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar en el catálogo..." />
         </div>
       </section>
 
       <div className="catalog-grid">
-        {catalog.map((item) => (
+        {filteredCatalog.map((item) => (
           <article
             key={item.id}
             style={{
@@ -83,8 +87,11 @@ export default function CatalogPage() {
             <button
               className="primary-button"
               type="button"
-              disabled={busyId === item.url || !selectedId}
-              onClick={() => void addToSelected(item.url)}
+              disabled={busyId === item.url}
+              onClick={() => {
+                if (!lists.length) { setError('Crea o selecciona una lista primero.'); return }
+                setAddTargetUrl(item.url)
+              }}
               style={{ minHeight: 32, fontSize: 10, width: '100%', justifyContent: 'center' }}
             >
               {busyId === item.url ? <LoaderCircle className="spin" size={14} /> : <Plus size={14} />} Añadir
@@ -92,7 +99,7 @@ export default function CatalogPage() {
           </article>
         ))}
       </div>
-      {catalog.length === 0 && (
+      {filteredCatalog.length === 0 && (
         <div className="empty-inline"><span className="empty-icon"><Film size={17} /></span><div><strong>Sin elementos</strong><small>Agrega elementos al catálogo en src/data/catalog.ts.</small></div></div>
       )}
       {detailItem && createPortal(
@@ -113,9 +120,43 @@ export default function CatalogPage() {
             </div>
             <div className="modal-actions">
               <button type="button" className="text-link" onClick={() => setDetailItem(null)}>Cerrar</button>
-              <button className="primary-button" type="button" disabled={busyId === detailItem.url || !selectedId} onClick={() => { void addToSelected(detailItem.url); setDetailItem(null) }}>
+              <button className="primary-button" type="button" disabled={busyId === detailItem.url} onClick={() => { setAddTargetUrl(detailItem.url); setDetailItem(null) }}>
                 {busyId === detailItem.url ? <LoaderCircle className="spin" size={15} /> : <Plus size={15} />} Añadir a la lista
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {addTargetUrl && createPortal(
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAddTargetUrl(null) }}>
+          <div className="modal-card" style={{ maxWidth: 420 }}>
+            <button type="button" className="modal-close" onClick={() => setAddTargetUrl(null)}>×</button>
+            <div className="modal-header">
+              <span className="modal-kicker"><Bookmark size={13} /> LISTA DESTINO</span>
+              <h2>Elige una lista</h2>
+            </div>
+            <div className="modal-body" style={{ gap: 8 }}>
+              {lists.length === 0 ? (
+                <div className="empty-inline"><span className="empty-icon"><Bookmark size={17} /></span><div><strong>Sin listas</strong><small>Crea una lista primero.</small></div></div>
+              ) : (
+                lists.map((list) => (
+                  <button
+                    key={list.id}
+                    type="button"
+                    className="exit-option"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    disabled={busyId === addTargetUrl}
+                    onClick={() => { void addToSelected(addTargetUrl, list.id); setAddTargetUrl(null) }}
+                  >
+                    <span>{list.name}</span>
+                    <small>{list.shared ? 'Compartida' : 'Personal'}{list.isPublic ? ' · Pública' : ''}</small>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="text-link" onClick={() => setAddTargetUrl(null)}>Cancelar</button>
             </div>
           </div>
         </div>,
