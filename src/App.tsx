@@ -7,6 +7,7 @@ import ProtectedRoute from './routes/ProtectedRoute'
 import './App.css'
 
 const AuthPage = lazy(() => import('./pages/AuthPage'))
+const CatalogPage = lazy(() => import('./pages/CatalogPage'))
 const FriendsPage = lazy(() => import('./pages/FriendsPage'))
 const HomePage = lazy(() => import('./pages/HomePage'))
 const LegalPage = lazy(() => import('./pages/LegalPage'))
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <HomePage /> },
           { path: 'amigos', element: <FriendsPage /> },
+          { path: 'catalogo', element: <CatalogPage /> },
           { path: 'lista', element: <WatchlistPage /> },
           { path: 'sala/:roomId', element: <RoomPage /> },
           { path: 'perfil', element: <ProfilePage /> },

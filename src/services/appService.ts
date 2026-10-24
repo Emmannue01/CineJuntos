@@ -142,15 +142,37 @@ export async function removeFriend(friendUid: string) {
 }
 
 export function subscribeWatchlists(uid: string, callback: (lists: Watchlist[]) => void) {
-  return onSnapshot(query(collection(db, 'watchlists'), where('memberUids', 'array-contains', uid)), (snapshot) => {
-    callback(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Watchlist))
+  let ownerLists: Watchlist[] = []
+  let memberLists: Watchlist[] = []
+  const emit = () => {
+    const merged = new Map<string, Watchlist>()
+    for (const list of [...ownerLists, ...memberLists]) merged.set(list.id, list)
+    callback(Array.from(merged.values()))
+  }
+  const stopOwner = onSnapshot(query(collection(db, 'watchlists'), where('ownerUid', '==', uid)), (snapshot) => {
+    ownerLists = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Watchlist)
+    emit()
   })
+  const stopMember = onSnapshot(query(collection(db, 'watchlists'), where('memberUids', 'array-contains', uid)), (snapshot) => {
+    memberLists = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Watchlist)
+    emit()
+  })
+  return () => { stopOwner(); stopMember() }
 }
 
 export async function createWatchlist(ownerUid: string, name: string, friendUid?: string, isPublic = false) {
   const memberUids = friendUid ? [ownerUid, friendUid].sort() : [ownerUid]
   const result = await addDoc(collection(db, 'watchlists'), { name: name.trim() || 'Nuestra lista', ownerUid, memberUids, shared: Boolean(friendUid), isPublic, createdAt: Date.now() })
   return result.id
+}
+
+export async function shareWatchlistWith(listId: string, friendUid: string) {
+  const listRef = doc(db, 'watchlists', listId)
+  const snapshot = await getDoc(listRef)
+  if (!snapshot.exists()) throw new Error('La lista no existe.')
+  const data = snapshot.data()
+  const memberUids = Array.from(new Set([...(data.memberUids || []), friendUid]))
+  await updateDoc(listRef, { memberUids, shared: memberUids.length > 1 })
 }
 
 export function subscribePublicWatchlists(uid: string, callback: (lists: Watchlist[]) => void) {

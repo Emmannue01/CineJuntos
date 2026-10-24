@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDown, ArrowUp, Bookmark, Check, Clapperboard, Clock3, Film, Globe, Link2, LoaderCircle, Lock, Pencil, Play, Plus, Trash2, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Bookmark, Check, ChevronDown, Clapperboard, Clock3, Film, Globe, Link2, LoaderCircle, Lock, Pencil, Play, Plus, Trash2, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { readableError } from '../lib/errors'
 import { parseMediaLink } from '../lib/media'
-import { addVideo, createRoom, createWatchlist, deleteVideo, deleteWatchlist, reorderVideos, subscribeFriends, subscribeVideos, subscribeWatchlists, toggleWatchlistPublic, updateVideo, updateWatchlistName } from '../services/appService'
+import { addVideo, createRoom, createWatchlist, deleteVideo, deleteWatchlist, reorderVideos, shareWatchlistWith, subscribeFriends, subscribeVideos, subscribeWatchlists, toggleWatchlistPublic, updateVideo, updateWatchlistName } from '../services/appService'
 import type { UserProfile, VideoItem, Watchlist } from '../types'
 
 export default function WatchlistPage() {
@@ -14,6 +14,7 @@ export default function WatchlistPage() {
   const [friends, setFriends] = useState<UserProfile[]>([])
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [selectedId, setSelectedId] = useState('')
+  const [expandedId, setExpandedId] = useState('')
   const [link, setLink] = useState('')
   const [loadingVideo, setLoadingVideo] = useState(false)
   const [busy, setBusy] = useState('')
@@ -30,6 +31,7 @@ export default function WatchlistPage() {
     const stopLists = subscribeWatchlists(user.uid, (next) => {
       setLists(next)
       setSelectedId((current) => current && next.some((list) => list.id === current) ? current : next[0]?.id || '')
+      setExpandedId((current) => current && next.some((list) => list.id === current) ? current : next[0]?.id || '')
     })
     const stopFriends = subscribeFriends(user.uid, setFriends)
     return () => { stopLists(); stopFriends() }
@@ -80,6 +82,7 @@ export default function WatchlistPage() {
       } else if (selected) {
         if (newListName.trim() !== selected.name) await updateWatchlistName(selectedId, newListName)
         if (newListPublic !== !!selected.isPublic) await toggleWatchlistPublic(selectedId, newListPublic)
+        if (newListFriend) await shareWatchlistWith(selectedId, newListFriend)
         setNotice('Lista actualizada.')
       }
       setListModal(null)
@@ -145,16 +148,43 @@ export default function WatchlistPage() {
       </form></section>
 
     {lists.length === 0 ? <div className="first-list"><div className="first-list-icon"><Clapperboard size={25} /></div><h2>Todavía no hay lista.</h2><p>Crea una lista personal o compártela con alguien para empezar.</p><button className="primary-button" onClick={openCreate}><Plus size={17} /> Crear mi primera lista</button></div> : <div className="watchlist-content">
-      <div className="list-meta-row">
-        <div><span className="section-kicker">{selected?.shared ? 'A DOS VOCES' : 'TU COLECCIÓN'}</span><h2><>{selected?.name || 'Mi lista'} <span className="count-badge">{pending.length}</span></><span className="public-toggle">{selected?.isPublic ? <><Globe size={14} /> Pública</> : <><Lock size={14} /> Privada</>}</span>
-          <button className="text-link" onClick={openEdit}><Pencil size={14} /> Editar lista</button></h2>
-        
-      </div>
-      <div className="list-stats"><span><Clock3 size={14} /> {pending.length} por ver</span><span><Check size={14} /> {watched.length} vistos</span></div></div>
-      {pending.length ? (
-        <div className="video-list">{pending.map((video, index) => (
-          <article className="video-item" key={video.id}><span className="video-index">{String(index + 1).padStart(2, '0')}</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}<span className="thumb-play"><Play size={15} fill="currentColor" /></span></div><div className="video-info"><strong>{video.title}</strong><small>{selected?.shared ? <><Users size={12} /> Lista conjunta</> : 'Añadido a la lista'} · {mediaLabel(video.provider)}</small></div><div className="video-actions"><button className="icon-button watch-button" title="Ver juntos" disabled={busy === video.id} onClick={() => void launch(video)}>{busy === video.id ? <LoaderCircle size={16} className="spin" /> : <Play size={16} fill="currentColor" />}</button><div className="reorder-actions"><button className="bare-icon" title="Subir" disabled={index === 0 || busy === 'reorder'} onClick={() => void move(index, -1)}><ArrowUp size={14} /></button><button className="bare-icon" title="Bajar" disabled={index === pending.length - 1 || busy === 'reorder'} onClick={() => void move(index, 1)}><ArrowDown size={14} /></button></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar como visto" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'watched' })}><Check size={15} /></button></div></article>))}</div>) : <div className="empty-inline list-empty"><span className="empty-icon"><Film size={17} /></span><div><strong>No hay videos pendientes</strong><small>Añade un enlace multimedia para tu siguiente función.</small></div></div>}
-      {watched.length > 0 && <details className="watched-details"><summary><Check size={15} /> Ya vimos ({watched.length})</summary><div className="video-list watched-list">{watched.map((video) => <article className="video-item" key={video.id}><span className="video-index">✓</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}</div><div className="video-info"><strong>{video.title}</strong><small>Vista juntos · {mediaLabel(video.provider)}</small></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar pendiente" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'pending' })}><Clock3 size={15} /></button></article>)}</div></details>}
+      {lists.map((list) => {
+        const isExpanded = expandedId === list.id
+        return (
+          <section key={list.id} style={{ border: '1px solid var(--line)', borderRadius: 12, marginBottom: 12, overflow: 'hidden', background: 'var(--panel)' }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (isExpanded) setExpandedId('')
+                else { setExpandedId(list.id); setSelectedId(list.id) }
+              }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 13 }}>
+                <ChevronDown size={16} style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .18s', color: 'var(--accent)' }} />
+                {list.name}
+                {list.shared && <Users size={12} />}
+                {list.isPublic && <Globe size={12} />}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{list.shared ? 'Compartida' : 'Personal'}{list.isPublic ? ' · Pública' : ''}</span>
+            </button>
+            {isExpanded && selectedId === list.id && (
+              <div style={{ padding: '12px 14px', borderTop: '1px solid var(--line)' }}>
+                <div className="list-meta-row">
+                  <div><span className="section-kicker">{selected?.shared ? 'A DOS VOCES' : 'TU COLECCIÓN'}</span><h2><>{selected?.name || 'Mi lista'} <span className="count-badge">{pending.length}</span></><span className="public-toggle">{selected?.isPublic ? <><Globe size={14} /> Pública</> : <><Lock size={14} /> Privada</>}</span>
+                    <button className="text-link" onClick={openEdit}><Pencil size={14} /> Editar lista</button></h2>
+
+                </div>
+                <div className="list-stats"><span><Clock3 size={14} /> {pending.length} por ver</span><span><Check size={14} /> {watched.length} vistos</span></div></div>
+                {pending.length ? (
+                  <div className="video-list">{pending.map((video, index) => (
+                    <article className="video-item" key={video.id}><span className="video-index">{String(index + 1).padStart(2, '0')}</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}<span className="thumb-play"><Play size={15} fill="currentColor" /></span></div><div className="video-info"><strong>{video.title}</strong><small>{selected?.shared ? <><Users size={12} /> Lista conjunta</> : 'Añadido a la lista'} · {mediaLabel(video.provider)}</small></div><div className="video-actions"><button className="icon-button watch-button" title="Ver juntos" disabled={busy === video.id} onClick={() => void launch(video)}>{busy === video.id ? <LoaderCircle size={16} className="spin" /> : <Play size={16} fill="currentColor" />}</button><div className="reorder-actions"><button className="bare-icon" title="Subir" disabled={index === 0 || busy === 'reorder'} onClick={() => void move(index, -1)}><ArrowUp size={14} /></button><button className="bare-icon" title="Bajar" disabled={index === pending.length - 1 || busy === 'reorder'} onClick={() => void move(index, 1)}><ArrowDown size={14} /></button></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar como visto" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'watched' })}><Check size={15} /></button></div></article>))}</div>) : <div className="empty-inline list-empty"><span className="empty-icon"><Film size={17} /></span><div><strong>No hay videos pendientes</strong><small>Añade un enlace multimedia para tu siguiente función.</small></div></div>}
+                {watched.length > 0 && <details className="watched-details"><summary><Check size={15} /> Ya vimos ({watched.length})</summary><div className="video-list watched-list">{watched.map((video) => <article className="video-item" key={video.id}><span className="video-index">✓</span><div className="video-thumb">{video.thumbnail ? <img src={video.thumbnail} alt="" /> : <span className="video-thumb-placeholder"><Film size={19} /></span>}</div><div className="video-info"><strong>{video.title}</strong><small>Vista juntos · {mediaLabel(video.provider)}</small></div><button className="bare-icon delete-video" title="Eliminar" onClick={() => selectedId && void deleteVideo(selectedId, video.id)}><Trash2 size={15} /></button><button className="bare-icon" title="Marcar pendiente" onClick={() => selectedId && void updateVideo(selectedId, video.id, { status: 'pending' })}><Clock3 size={15} /></button></article>)}</div></details>}
+              </div>
+            )}
+          </section>
+        )
+      })}
     </div>}
      {listModal && (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setListModal(null) }}>

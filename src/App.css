@@ -151,6 +151,8 @@
 .topbar-user-menu { display: none !important; }
 .mobile-brand { display: none; align-items: center; gap: 8px; font-family: var(--heading); font-size: 16px; font-weight: 700; }
 .page-content { width: min(100%, 1180px); margin: 0 auto; padding: 36px 42px 60px; }
+.catalog-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+@media (min-width: 900px) { .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); } }
 .mobile-tabs { display: none; }
 .avatar { display: block; width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; object-fit: cover; background: var(--panel-raised); color: var(--text); }
 .avatar.small { width: 27px; height: 27px; flex-basis: 27px; }
@@ -158,7 +160,7 @@
 .avatar-fallback { display: grid; place-items: center; color: var(--accent-text); background: var(--accent); font-family: var(--heading); font-size: 15px; font-weight: 700; }
 .avatar-fallback.large { font-size: 34px; }
 .page-enter { animation: page-rise .45s cubic-bezier(.2,.72,.2,1) both; }
-@keyframes page-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes page-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes poster-float { 0%, 100% { transform: translateY(0) rotate(-7deg); } 50% { transform: translateY(-7px) rotate(-5deg); } }
 .spin { animation: spin .9s linear infinite; }
@@ -307,7 +309,7 @@
 .video-item { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 9px 4px; border-radius: 6px; cursor: default; transition: background .15s, transform .1s; }
 .video-item:hover { background: var(--panel-hover); transform: translateY(-1px); }
 .video-index { width: 24px; flex: 0 0 24px; color: var(--subtle); font-family: var(--mono); font-size: 9px; text-align: center; font-weight: 600; }
-.video-thumb { position: relative; width: 92px; height: 54px; flex: 0 0 92px; overflow: hidden; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); }
+.video-thumb { position: relative; width: 120px; aspect-ratio: 4 / 3; flex: 0 0 120px; overflow: hidden; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); }
 .video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .video-thumb-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: var(--muted); }
 .thumb-play { position: absolute; inset: 0; display: grid; place-items: center; color: white; background: #0006; opacity: 0; transition: opacity .18s, transform .18s; transform: scale(.95); border-radius: 6px; }
@@ -436,7 +438,7 @@
 .first-list h2 { margin: 14px 0 5px; font-family: var(--heading); font-size: 19px; font-weight: 500; }
 .first-list p { max-width: 330px; margin-bottom: 15px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .first-list .primary-button { min-height: 36px; }
-.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 28px; background: rgba(2, 1, 6, 0.72); backdrop-filter: blur(10px); animation: modalFadeIn .28s cubic-bezier(0.16, 1, 0.3, 1); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 28px; background: rgba(2, 1, 6, 0.72); backdrop-filter: blur(10px); animation: modalFadeIn .28s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-card { position: relative; display: grid; width: min(100%, 460px); gap: 0; padding: 0; border: 1px solid var(--line-light); border-radius: 16px; background: linear-gradient(180deg, var(--panel-raised), var(--panel)); box-shadow: var(--card-shadow); overflow: hidden; animation: modalScaleUp .26s cubic-bezier(0.18, 0.89, 0.32, 1.28) both; }
@@ -735,7 +737,7 @@
   .user-dropdown-item.logout { color: var(--red); }
   .user-dropdown-item.logout:active, .user-dropdown-item.logout:hover { background: var(--red-soft); color: var(--red-bright); }
   .user-dropdown-badge { margin-left: auto; font-family: var(--mono); font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--panel-raised); color: var(--accent); }
-  .mobile-tabs { position: fixed; inset: auto 0 0; z-index: 10; display: grid; height: 64px; grid-template-columns: repeat(4, 1fr); padding: 5px max(10px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); border-top: 1px solid var(--line); background: var(--topbar-bg); backdrop-filter: blur(12px); }
+  .mobile-tabs { position: fixed; inset: auto 0 0; z-index: 10; display: grid; height: 64px; grid-template-columns: repeat(5, 1fr); padding: 5px max(10px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); border-top: 1px solid var(--line); background: var(--topbar-bg); backdrop-filter: blur(12px); }
   .mobile-tab { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; color: var(--muted); font-size: 8px; }
   .mobile-tab.active { color: var(--accent); }
   .page-content { width: min(100%, 800px); padding: 29px 27px 36px; }
@@ -796,7 +798,7 @@
   .list-stats { flex-direction: column; align-items: flex-end; gap: 5px; }
   .video-item { gap: 8px; min-height: 74px; }
   .video-index { width: 17px; flex-basis: 17px; font-size: 8px; }
-  .video-thumb { width: 82px; height: 49px; flex-basis: 82px; }
+  .video-thumb { width: 100px; aspect-ratio: 4 / 3; flex-basis: 100px; }
   .video-info strong { font-size: 9px; }
   .video-info small { font-size: 8px; }
   .video-actions { gap: 0; }
@@ -853,7 +855,7 @@
   .feature-copy h2 { font-size: 24px; }
   .feature-copy p { max-width: 190px; }
   .feature-art { left: 45%; }
-  .video-thumb { width: 68px; height: 44px; flex-basis: 68px; }
+  .video-thumb { width: 84px; aspect-ratio: 4 / 3; flex-basis: 84px; }
   .video-item { gap: 6px; }
   .video-actions .delete-video { display: none; }
   .room-topline { gap: 5px; }
@@ -1294,8 +1296,8 @@
 
 /* -- Modal de lista en movil -- */
 @media (max-width: 620px) {
-  .modal-backdrop { align-items: start; overflow-y: auto; padding: 14px 12px; }
-  .modal-card { max-height: none; overflow: hidden; margin: 0 auto; border-radius: 14px; }
+  .modal-backdrop { align-items: center; justify-content: center; overflow-y: auto; padding: 14px 12px; }
+  .modal-card { max-height: calc(100dvh - 28px); overflow-y: auto; margin: auto; border-radius: 14px; }
   .list-modal .modal-header { padding-right: 54px; }
   .list-modal .modal-body { gap: 15px; padding: 16px 18px 18px; }
   .list-modal-actions { margin-top: 0; gap: 10px; padding: 14px 18px 18px; flex-wrap: wrap; }

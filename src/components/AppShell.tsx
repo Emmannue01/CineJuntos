@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Bookmark, Clapperboard, Home, LogOut, Monitor, Moon, Sun, Users, UserRound } from 'lucide-react'
+import { Bookmark, Clapperboard, Film, Home, LogOut, Monitor, Moon, Sun, Users, UserRound } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { usePublishPresence } from '../hooks/usePresence'
 import { useTheme } from '../hooks/useTheme'
@@ -9,6 +9,7 @@ const links = [
   { to: '/', label: 'Inicio', icon: Home, end: true },
   { to: '/amigos', label: 'Amigos', icon: Users },
   { to: '/lista', label: 'Mi lista', icon: Bookmark },
+  { to: '/catalogo', label: 'Catálogo', icon: Film },
 ]
 
 export default function AppShell() {

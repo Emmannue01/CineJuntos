@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { ArrowLeft, Check, Clock3, Copy, Expand, ExternalLink, Film, LoaderCircle, MessageCircle, Mic, MicOff, Pause, PhoneOff, Play, Send, Settings2, Users, Volume2, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/AppShell'
@@ -246,7 +247,7 @@ function RoomExperience(props: {
       </div>
       <button className="leave-room-bottom" onClick={() => void exitRoom()} disabled={busy}>Salir de la sala</button>
     </div>
-    {changeVideoOpen && (
+    {changeVideoOpen && createPortal(
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangeVideoOpen(false) }}>
         <section className="modal-card change-video-modal" role="dialog" aria-modal="true" aria-labelledby="change-video-title">
           <button type="button" className="modal-close" onClick={() => setChangeVideoOpen(false)} aria-label="Cerrar">×</button>
@@ -286,9 +287,10 @@ function RoomExperience(props: {
             <button type="button" className="primary-button" onClick={() => setChangeVideoOpen(false)}>Cerrar</button>
           </footer>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
-    {exitOpen && (
+    {exitOpen && createPortal(
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExitOpen(false) }}>
         <section className="modal-card exit-modal" role="dialog" aria-modal="true" aria-labelledby="exit-room-title">
           <button type="button" className="modal-close" onClick={() => setExitOpen(false)} aria-label="Cerrar">×</button>
@@ -314,7 +316,8 @@ function RoomExperience(props: {
             <button type="button" className="text-link" onClick={() => setExitOpen(false)}>Cancelar</button>
           </footer>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
   </div>
 }
