@@ -350,7 +350,7 @@ export const catalog: CatalogItem[] = [
     id: 'marvel-thor-amor-y-trueno',
     title: 'Thor: Amor y Trueno',
     description: 'Thor se ve obligado a interrumpir su búsqueda de tranquilidad cuando surge Gorr, el Carnicero de Dioses. Para enfrentarlo, forma equipo con Valquiria, Korg y su exnovia Jane Foster, ahora empuñando a Mjolnir.',
-    url: '',
+    url: 'https://ia600707.us.archive.org/30/items/mrv_20261024/29.%20Thor%20Love%20And%20Thunder.mp4',
     thumbnail: 'https://image.tmdb.org/t/p/w500/pIkRyD18kl4FhoCNQuWxWu5cBLM.jpg',
   },
   {
